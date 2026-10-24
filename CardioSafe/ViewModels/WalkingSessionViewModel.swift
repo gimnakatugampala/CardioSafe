@@ -6,7 +6,7 @@ import Observation
 @Observable
 final class WalkingSessionViewModel {
     #if os(iOS)
-    let locationModel = WalkingLocationViewModel()
+    let locationModel = WalkingLocationViewModel(backgroundUpdates: true)
     let healthModel = WalkingHealthViewModel()
     #endif
     private(set) var phase: WalkingSessionPhase = .ready
@@ -106,6 +106,9 @@ final class WalkingSessionViewModel {
         intervalStart = now
         needsRouteSegment = true
         phase = .resting
+        #if os(iOS)
+        healthModel.isResting = true
+        #endif
         return true
     }
 
@@ -117,6 +120,9 @@ final class WalkingSessionViewModel {
         intervalStart = now
         needsRouteSegment = true
         phase = .walking
+        #if os(iOS)
+        healthModel.isResting = false
+        #endif
         return true
     }
 

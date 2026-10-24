@@ -109,6 +109,8 @@ struct ContentView: View {
                 onSelectTab: { selection = $0 },
                 onEmergency: { showingEmergency = true }
             )
+        } else if tab == .care {
+            CareFinderView()
         } else if tab == .walk {
             WalkingOverviewView(viewModel: dashboardViewModel, sessionViewModel: sessionViewModel)
         } else {

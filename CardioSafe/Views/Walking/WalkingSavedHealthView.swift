@@ -8,8 +8,11 @@ struct WalkingSavedHealthView: View {
         VStack(alignment: .leading, spacing: 14) {
             Label("Health readings", systemImage: "heart.text.clipboard").font(.headline)
             if let snapshot {
-                row("Session steps", value: snapshot.steps.map(String.init) ?? "Unavailable", source: "iPhone motion")
-                row("Motion distance", value: snapshot.motionDistanceMetres.map { String(format: "%.2f km", $0 / 1000) } ?? "Unavailable", source: "iPhone motion")
+                if snapshot.isSimulatorTestData == true {
+                    Label("Simulator test readings", systemImage: "testtube.2").font(.subheadline.weight(.semibold))
+                }
+                row("Session steps", value: snapshot.steps.map(String.init) ?? "Unavailable", source: snapshot.isSimulatorTestData == true ? "HealthKit · simulated session" : "iPhone motion")
+                row("Motion distance", value: snapshot.motionDistanceMetres.map { String(format: "%.2f km", $0 / 1000) } ?? "Unavailable", source: snapshot.isSimulatorTestData == true ? "HealthKit · simulated session" : "iPhone motion")
                 if let date = snapshot.motionUpdatedAt {
                     timestamp("Motion data through", date: date)
                 }

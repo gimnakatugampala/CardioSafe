@@ -51,6 +51,7 @@ struct WalkingHealthSnapshot: Equatable, Codable {
     let heartRateRecordedAt: Date?
     let activeKilocalories: Double?
     let energyThrough: Date?
+    var isSimulatorTestData: Bool? = nil
 
     var isValid: Bool {
         if let steps, steps < 0 { return false }

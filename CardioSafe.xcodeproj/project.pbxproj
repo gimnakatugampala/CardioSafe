@@ -244,18 +244,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Config/CardioSafe.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-                INFOPLIST_FILE = "Config/CardioSafe-Info.plist";
-                CODE_SIGN_ENTITLEMENTS = Config/CardioSafe.entitlements;
-                INFOPLIST_KEY_NSHealthUpdateUsageDescription = "In the iOS Simulator, CardioSafe saves clearly identified test samples to HealthKit to demonstrate saving and querying health data.";
-                INFOPLIST_KEY_NSHealthShareUsageDescription = "CardioSafe reads steps, walking distance, heart rate and active energy to show your daily activity and walking session readings.";
-                INFOPLIST_KEY_NSMotionUsageDescription = "CardioSafe uses motion data to show your steps and walking distance during a session.";
+				INFOPLIST_FILE = "Config/CardioSafe-Info.plist";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "CardioSafe reads steps, walking distance, heart rate and active energy to show your daily activity and walking session readings.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "In the iOS Simulator, CardioSafe saves clearly identified test samples to HealthKit to demonstrate saving and querying health data.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "CardioSafe uses your location to show where you are on the map during a walking session.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "CardioSafe uses motion data to show your steps and walking distance during a session.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -292,18 +292,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Config/CardioSafe.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-                INFOPLIST_FILE = "Config/CardioSafe-Info.plist";
-                CODE_SIGN_ENTITLEMENTS = Config/CardioSafe.entitlements;
-                INFOPLIST_KEY_NSHealthUpdateUsageDescription = "In the iOS Simulator, CardioSafe saves clearly identified test samples to HealthKit to demonstrate saving and querying health data.";
-                INFOPLIST_KEY_NSHealthShareUsageDescription = "CardioSafe reads steps, walking distance, heart rate and active energy to show your daily activity and walking session readings.";
-                INFOPLIST_KEY_NSMotionUsageDescription = "CardioSafe uses motion data to show your steps and walking distance during a session.";
+				INFOPLIST_FILE = "Config/CardioSafe-Info.plist";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "CardioSafe reads steps, walking distance, heart rate and active energy to show your daily activity and walking session readings.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "In the iOS Simulator, CardioSafe saves clearly identified test samples to HealthKit to demonstrate saving and querying health data.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "CardioSafe uses your location to show where you are on the map during a walking session.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "CardioSafe uses motion data to show your steps and walking distance during a session.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;

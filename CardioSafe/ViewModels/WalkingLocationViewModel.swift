@@ -11,13 +11,13 @@ final class WalkingLocationViewModel: NSObject, CLLocationManagerDelegate {
     @ObservationIgnored private let manager = CLLocationManager()
     @ObservationIgnored private var wantsUpdates = false
 
-    override init() {
+    init(backgroundUpdates: Bool = false) {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.distanceFilter = 5
         manager.activityType = .fitness
-        if (Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String])?.contains("location") == true {
+        if backgroundUpdates, (Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String])?.contains("location") == true {
             manager.allowsBackgroundLocationUpdates = true
             manager.showsBackgroundLocationIndicator = true
             manager.pausesLocationUpdatesAutomatically = false
@@ -50,7 +50,7 @@ final class WalkingLocationViewModel: NSObject, CLLocationManagerDelegate {
             if wantsUpdates { manager.startUpdatingLocation() }
         case .denied, .restricted:
             location = nil
-            errorMessage = "Location access is off. Your walking timer still works."
+            errorMessage = "Location access is off. You can continue using the map."
             manager.stopUpdatingLocation()
         default: break
         }
@@ -66,6 +66,6 @@ final class WalkingLocationViewModel: NSObject, CLLocationManagerDelegate {
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         if (error as? CLError)?.code == .locationUnknown { return }
-        errorMessage = "Your location is unavailable. The walking timer is still running."
+        errorMessage = "Your location is unavailable. You can continue using the map."
     }
 }

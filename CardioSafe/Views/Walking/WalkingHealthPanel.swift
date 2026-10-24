@@ -8,10 +8,24 @@ struct WalkingHealthPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             LazyVGrid(columns: typeSize.isAccessibilitySize ? [GridItem(.flexible(), alignment: .leading)] : [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], alignment: .leading, spacing: 12) {
-                metric("Steps", value: model.steps.map(String.init) ?? "—", unit: "steps", symbol: "shoeprints.fill", note: "iPhone · this session")
+                metric("Steps", value: model.steps.map(String.init) ?? "—", unit: "steps", symbol: "shoeprints.fill", note: model.usesSimulatorSamples ? "HealthKit · test feed" : "iPhone · this session")
                 metric("Heart rate", value: model.heartRate.map { String(Int($0.rounded())) } ?? "—", unit: "bpm", symbol: "heart.fill", note: heartRateNote)
-                metric("Distance", value: (model.distanceMetres ?? gpsDistance).map { String(format: "%.2f", $0 / 1000) } ?? "—", unit: "km", symbol: "point.bottomleft.forward.to.point.topright.scurvepath", note: model.distanceMetres != nil ? "iPhone · this session" : (gpsDistance != nil ? "GPS estimate" : "No readable distance"))
+                metric("Distance", value: (model.distanceMetres ?? gpsDistance).map { String(format: "%.2f", $0 / 1000) } ?? "—", unit: "km", symbol: "point.bottomleft.forward.to.point.topright.scurvepath", note: model.distanceMetres != nil ? (model.usesSimulatorSamples ? "HealthKit · test feed" : "iPhone · this session") : (gpsDistance != nil ? "GPS estimate" : "No readable distance"))
                 metric("Active energy", value: model.activeKilocalories.map { String(Int($0.rounded())) } ?? "—", unit: "kcal", symbol: "flame.fill", note: "Apple Health · session")
+            }
+            if model.supportsSimulatorFeed {
+                Button {
+                    if model.isSimulatorFeedRunning { model.stopSimulatorFeed() }
+                    else { Task { await model.startSimulatorFeed() } }
+                } label: {
+                    Label(model.isStartingSimulatorFeed ? "Opening test feed…" : (model.isSimulatorFeedRunning ? "Stop simulator test feed" : "Start simulator test feed"), systemImage: "testtube.2")
+                        .font(.caption.weight(.semibold)).frame(minHeight: 44)
+                }
+                .disabled(model.isStartingSimulatorFeed)
+                if model.usesSimulatorSamples {
+                    Text("SIMULATED · HealthKit test samples, updated every 10 seconds while the feed runs.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
             }
             if let message = model.motionMessage {
                 Text(message).font(.caption2).foregroundStyle(.secondary)
@@ -30,7 +44,7 @@ struct WalkingHealthPanel: View {
                 .disabled(model.isConnecting)
             }
             if let date = model.motionUpdatedAt {
-                Text("Motion updated \(date, style: .relative) ago · Includes movement during rest")
+                Text("Data updated \(date, style: .relative) ago · Includes movement during rest")
                     .font(.caption2).foregroundStyle(.secondary)
             }
         }
