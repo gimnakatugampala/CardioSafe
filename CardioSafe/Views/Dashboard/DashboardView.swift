@@ -7,6 +7,7 @@ struct DashboardView: View {
     let onSelectTab: (AppTab) -> Void
     let onEmergency: () -> Void
 
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var showingWalkingMap = false
@@ -33,6 +34,14 @@ struct DashboardView: View {
         }
         .foregroundStyle(ink)
         .background(CardioSafeTheme.background(for: colorScheme))
+        .refreshable { await viewModel.refreshHealth() }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            while !Task.isCancelled {
+                await viewModel.refreshHealth()
+                do { try await Task.sleep(for: .seconds(30)) } catch { return }
+            }
+        }
         .sheet(isPresented: $showingWalkingMap) { WalkingMapView() }
         .fullScreenCover(isPresented: $showingSession) { WalkingSessionView(viewModel: sessionViewModel) }
     }
@@ -105,10 +114,33 @@ struct DashboardView: View {
             Divider()
             HStack(spacing: 7) {
                 Image(systemName: "heart.fill").foregroundStyle(CardioSafeTheme.alert)
-                Text(viewModel.snapshot.healthConnection == .connected ? "Apple Health connected" : "Apple Health not connected")
+                Text(viewModel.snapshot.healthReadings.isEmpty ? "No readable Health samples" : "Apple Health · Today’s activity & latest heart rate")
                     .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                if viewModel.isRefreshingHealth { ProgressView().controlSize(.mini) }
             }
             .font(.caption2)
+            if let error = viewModel.healthError {
+                Text(error).font(.caption2).foregroundStyle(.secondary)
+            }
+            Button {
+                Task { await viewModel.connectHealth() }
+            } label: {
+                Text(viewModel.isConnectingHealth ? "Opening Apple Health…" : (viewModel.hasRequestedHealthAccess ? "Request Health access" : "Connect Apple Health"))
+                    .font(.caption.weight(.semibold)).frame(minHeight: 44)
+            }
+            .disabled(viewModel.isConnectingHealth || viewModel.isSeedingHealth)
+            if viewModel.supportsSampleHealthData {
+                Button {
+                    Task { await viewModel.loadSampleHealthData() }
+                } label: {
+                    Label(viewModel.isSeedingHealth ? "Saving test samples…" : "Load simulator sample data", systemImage: "testtube.2")
+                        .font(.caption.weight(.semibold)).frame(minHeight: 44)
+                }
+                .disabled(viewModel.isSeedingHealth || viewModel.isConnectingHealth)
+                Text(viewModel.sampleDataMessage ?? "Simulator testing: writes sample steps, distance, heart rate and energy to HealthKit, then queries them.")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
         }
         .padding(.vertical, 17).padding(.horizontal, 12)
         .background(surface, in: RoundedRectangle(cornerRadius: 18))

@@ -10,7 +10,7 @@ import SwiftUI
 @main
 struct CardioSafeApp: App {
     @State private var dashboardViewModel = DashboardViewModel(
-        planStore: CoreDataWalkingPlanStore(), ownerID: "local-device"
+        planStore: CoreDataWalkingPlanStore(), ownerID: "local-device", healthService: HealthKitDashboardService()
     )
     @State private var walkingSessionViewModel = WalkingSessionViewModel(store: CoreDataWalkingSessionStore(), ownerID: "local-device")
     var body: some Scene {

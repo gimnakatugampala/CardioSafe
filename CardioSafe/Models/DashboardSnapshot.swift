@@ -20,8 +20,8 @@ struct DashboardSnapshot {
     var walkingPlan: WalkingPlan?
 
     var walkingTargetMinutes: Int? { walkingPlan?.walkingMinutes }
-    let healthConnection: Connection
-    let healthReadings: [HealthMetric: HealthReading]
+    var healthConnection: Connection
+    var healthReadings: [HealthMetric: HealthReading]
     let guardianConnection: Connection
 
     static let unconfigured = DashboardSnapshot(
