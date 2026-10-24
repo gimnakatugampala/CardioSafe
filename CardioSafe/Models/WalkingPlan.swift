@@ -1,6 +1,6 @@
 import Foundation
 
-struct WalkingPlan: Equatable {
+struct WalkingPlan: Equatable, Codable {
     let walkingMinutes: Int
     let restMinutesPerBreak: Int?
 }

@@ -8,11 +8,15 @@ final class WalkingPlanViewModel {
     var includesPlannedRest: Bool
     var restMinutesText: String
     private(set) var attemptedSave = false
+    private(set) var isSaving = false
+    private(set) var saveError: String?
+    @ObservationIgnored private let savePlan: (WalkingPlan) async throws -> Void
 
-    init(plan: WalkingPlan? = nil) {
+    init(plan: WalkingPlan? = nil, savePlan: @escaping (WalkingPlan) async throws -> Void) {
         walkingMinutesText = plan.map { String($0.walkingMinutes) } ?? ""
         includesPlannedRest = plan?.restMinutesPerBreak != nil
         restMinutesText = plan?.restMinutesPerBreak.map(String.init) ?? ""
+        self.savePlan = savePlan
     }
 
     var walkingError: String? {
@@ -36,6 +40,20 @@ final class WalkingPlanViewModel {
             rest = minutes
         }
         return WalkingPlan(walkingMinutes: walking, restMinutesPerBreak: rest)
+    }
+
+    func save() async -> Bool {
+        guard !isSaving, let plan = submit() else { return false }
+        isSaving = true
+        saveError = nil
+        defer { isSaving = false }
+        do {
+            try await savePlan(plan)
+            return true
+        } catch {
+            saveError = "Your plan could not be saved. Your changes are still here; try again."
+            return false
+        }
     }
 
     private func clean(_ text: String) -> String {

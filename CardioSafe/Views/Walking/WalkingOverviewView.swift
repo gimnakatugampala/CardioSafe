@@ -1,67 +1,147 @@
 import SwiftUI
-import MapKit
 
 struct WalkingOverviewView: View {
     let viewModel: DashboardViewModel
+    let sessionViewModel: WalkingSessionViewModel
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var showingPlanSetup = false
     @State private var showingWalkingMap = false
+    @State private var showingSession = false
 
-    private let previewRegion = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 6.9271, longitude: 79.8612),
-        span: MKCoordinateSpan(latitudeDelta: 0.025, longitudeDelta: 0.025)
-    )
+    private var surface: Color { CardioSafeTheme.surface(for: colorScheme) }
+    private var plan: WalkingPlan? {
+        sessionViewModel.isActive ? sessionViewModel.session?.plan : viewModel.snapshot.walkingPlan
+    }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Walking companion").font(.title2.bold())
-                    Text("Your plan, location and route in one place.")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                }
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack {
-                        Label("Map preview", systemImage: "map")
-                        Spacer()
-                        Button("Explore map") { showingWalkingMap = true }
-                            .frame(minHeight: 44)
+            VStack(alignment: .leading, spacing: 24) {
+                primaryButton(sessionViewModel.isActive ? "Return to walk" : "Start walking",
+                              symbol: sessionViewModel.isActive ? "arrow.up.right" : "play.fill") {
+                    if sessionViewModel.isActive || sessionViewModel.start(plan: viewModel.snapshot.walkingPlan) {
+                        showingSession = true
                     }
-                    .font(.caption.weight(.semibold)).padding(14)
-                    Map(initialPosition: .region(previewRegion))
-                        .mapStyle(.standard(pointsOfInterest: .excludingAll))
-                        .mapControls { MapCompass(); MapScaleView() }
-                        .frame(height: 280)
-                        .accessibilityLabel("Map preview of Colombo. This is not your current location or a walking route.")
-                    Label("Default area · Location tracking not connected", systemImage: "location.slash")
-                        .font(.caption).foregroundStyle(.secondary).padding(14)
                 }
-                .background(CardioSafeTheme.surface(for: colorScheme), in: RoundedRectangle(cornerRadius: 16))
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                VStack(alignment: .leading, spacing: 12) {
-                    Label(viewModel.walkingStatus, systemImage: "figure.walk")
-                        .font(.headline)
-                    Text(viewModel.walkingDescription).font(.subheadline).foregroundStyle(.secondary)
-                    Button(viewModel.snapshot.walkingPlan == nil ? "Set up walking plan" : "Edit walking plan") {
-                        showingPlanSetup = true
+                Text(sessionViewModel.isActive ? "Your session is still running." : "Tap to start. Add a walking target whenever you need one.")
+                    .font(.subheadline).foregroundStyle(.secondary)
+                planSection
+                HStack(spacing: 16) {
+                    Button { showingWalkingMap = true } label: {
+                        Label("Explore map", systemImage: "map")
+                            .frame(maxWidth: .infinity, minHeight: 48)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(CardioSafeTheme.teal)
-                    Divider()
-                    Text("Walking sessions are not available in this version.")
-                        .font(.caption).foregroundStyle(.secondary)
+                    NavigationLink {
+                        WalkingHistoryView(viewModel: sessionViewModel)
+                    } label: {
+                        Label("History", systemImage: "clock.arrow.circlepath")
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                    }
                 }
-                .padding(18).frame(maxWidth: .infinity, alignment: .leading)
-                .background(CardioSafeTheme.surface(for: colorScheme), in: RoundedRectangle(cornerRadius: 16))
+                .font(.subheadline.weight(.semibold))
+                .buttonStyle(.bordered)
+                if sessionViewModel.hasSummary { recentSummary }
+                if let error = sessionViewModel.saveError {
+                    Text(error).font(.caption).foregroundStyle(.red)
+                    Button("Retry saving walks") { Task { await sessionViewModel.savePendingSessions() } }
+                }
+                WalkingModeNote().padding(.horizontal, 2)
             }
-            .frame(maxWidth: 900).padding(20).frame(maxWidth: .infinity)
+            .frame(maxWidth: 640, alignment: .leading)
+            .padding(20).frame(maxWidth: .infinity)
         }
         .background(CardioSafeTheme.background(for: colorScheme))
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingPlanSetup) {
             WalkingPlanSetupView(plan: viewModel.snapshot.walkingPlan) { plan in
-                viewModel.saveWalkingPlan(plan)
+                try await viewModel.saveWalkingPlan(plan)
             }
         }
         .sheet(isPresented: $showingWalkingMap) { WalkingMapView() }
+        .fullScreenCover(isPresented: $showingSession) {
+            WalkingSessionView(viewModel: sessionViewModel)
+        }
+    }
+
+    private var planSection: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Label("Your walking plan", systemImage: "figure.walk")
+                    .font(.headline)
+                Spacer(minLength: 4)
+                if plan != nil && !sessionViewModel.isActive && viewModel.planLoadError == nil {
+                    Button("Edit") { showingPlanSetup = true }
+                        .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
+                }
+            }
+            if viewModel.isLoadingPlan {
+                ProgressView("Loading your saved plan…")
+            } else if let error = viewModel.planLoadError, !sessionViewModel.isActive {
+                Label(error, systemImage: "exclamationmark.circle")
+                    .font(.subheadline).foregroundStyle(.secondary)
+                Button("Retry loading plan") { Task { await viewModel.loadWalkingPlan() } }
+                    .buttonStyle(.borderedProminent)
+            } else if let plan {
+                if typeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 18) { planMetrics(plan) }
+                } else {
+                    HStack(alignment: .top, spacing: 24) {
+                        planMetrics(plan)
+                    }
+                }
+                Text(sessionViewModel.isActive
+                     ? "This session uses the plan you started with."
+                     : "Targets entered from your clinician’s plan.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Divider()
+
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Walking target · Optional").font(.title3.weight(.semibold))
+                    Text("You can walk without a target, or add the duration and rest interval from your clinician’s plan.")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+                Button("Add walking plan") { showingPlanSetup = true }.font(.subheadline.weight(.semibold)).frame(minHeight: 44)
+            }
+        }
+        .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+        .background(surface, in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    @ViewBuilder
+    private func planMetrics(_ plan: WalkingPlan) -> some View {
+        WalkingMetric(title: "Walking target", value: "\(plan.walkingMinutes)", unit: "minutes", symbol: "figure.walk")
+        WalkingMetric(title: "Rest per break", value: plan.restMinutesPerBreak.map(String.init) ?? "Not set",
+                      unit: plan.restMinutesPerBreak == nil ? "optional" : "minutes", symbol: "pause.circle")
+    }
+
+    private func primaryButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(title)
+                Spacer(minLength: 8)
+                Image(systemName: symbol)
+            }
+            .font(.subheadline.bold()).foregroundStyle(.white)
+            .padding(17).background(CardioSafeTheme.navy, in: RoundedRectangle(cornerRadius: 13))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var recentSummary: some View {
+        Button { showingSession = true } label: {
+            HStack(spacing: 13) {
+                Image(systemName: "checkmark.circle.fill").font(.title2).foregroundStyle(CardioSafeTheme.teal)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Your latest session").font(.subheadline.bold())
+                    Text("Review walking time and rest periods").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+            }
+            .padding(18).background(surface, in: RoundedRectangle(cornerRadius: 17))
+        }
+        .buttonStyle(.plain)
     }
 }

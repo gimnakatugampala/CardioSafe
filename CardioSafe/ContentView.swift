@@ -3,7 +3,14 @@ import SwiftUI
 struct ContentView: View {
     @State private var selection: AppTab = .home
     @State private var showingEmergency = false
-    @State private var dashboardViewModel = DashboardViewModel()
+    @State private var showingWalkingSession = false
+    @State private var dashboardViewModel: DashboardViewModel
+    @State private var sessionViewModel: WalkingSessionViewModel
+
+    init(viewModel: DashboardViewModel, sessionViewModel: WalkingSessionViewModel) {
+        _dashboardViewModel = State(initialValue: viewModel)
+        _sessionViewModel = State(initialValue: sessionViewModel)
+    }
 
     var body: some View {
         TabView(selection: $selection) {
@@ -11,6 +18,7 @@ struct ContentView: View {
                 Tab(tab.rawValue, systemImage: tab.symbol, value: tab) {
                     NavigationStack {
                         destination(for: tab)
+                            .toolbar(.hidden, for: .tabBar)
                             .navigationTitle(tab == .home ? "" : tab.rawValue)
                             .toolbar(tab == .home ? .hidden : .visible, for: .navigationBar)
                             .toolbar {
@@ -25,9 +33,71 @@ struct ContentView: View {
                 }
             }
         }
-        .tabViewStyle(.sidebarAdaptable)
+        .toolbar(.hidden, for: .tabBar)
+        .safeAreaInset(edge: .bottom, spacing: 0) { bottomNavigation }
+        .fullScreenCover(isPresented: $showingWalkingSession) {
+            WalkingSessionView(viewModel: sessionViewModel)
+        }
         .tint(CardioSafeTheme.teal)
         .sheet(isPresented: $showingEmergency) { EmergencyHelpView() }
+        .task {
+            await dashboardViewModel.loadWalkingPlan()
+            await sessionViewModel.loadHistory()
+        }
+    }
+
+    private var bottomNavigation: some View {
+        HStack(alignment: .center, spacing: 0) {
+            navigationButton(.home)
+            navigationButton(.care)
+            Button {
+                selection = .walk
+                if sessionViewModel.isActive || sessionViewModel.start(plan: dashboardViewModel.snapshot.walkingPlan) {
+                    showingWalkingSession = true
+                }
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: "figure.walk")
+                        .font(.system(size: 25, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 56, height: 56)
+                        .background(CardioSafeTheme.navy, in: Circle())
+                        .overlay(Circle().stroke(.white.opacity(0.22), lineWidth: 2))
+                    Text(sessionViewModel.isActive ? "Resume" : "Walk")
+                        .font(.caption2.bold())
+                        .foregroundStyle(CardioSafeTheme.teal)
+                }
+                .frame(maxWidth: .infinity, minHeight: 76)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(sessionViewModel.isActive ? "Return to walking session" : "Start walking")
+            .accessibilityHint("Opens the full-screen walking map")
+            navigationButton(.records)
+            navigationButton(.profile)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 6)
+        .frame(maxWidth: 640)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 30))
+        .overlay(RoundedRectangle(cornerRadius: 30).strokeBorder(.primary.opacity(0.06)))
+        .padding(.horizontal, 12).padding(.bottom, 4)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func navigationButton(_ tab: AppTab) -> some View {
+        Button { selection = tab } label: {
+            VStack(spacing: 6) {
+                Image(systemName: tab.symbol)
+                    .font(.system(size: 21, weight: selection == tab ? .semibold : .regular))
+                Text(tab.rawValue).font(.caption2.weight(selection == tab ? .semibold : .regular))
+                    .lineLimit(1).minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(selection == tab ? CardioSafeTheme.teal : .secondary)
+            .frame(maxWidth: .infinity, minHeight: 60)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selection == tab ? .isSelected : [])
     }
 
     @ViewBuilder
@@ -35,11 +105,12 @@ struct ContentView: View {
         if tab == .home {
             DashboardView(
                 viewModel: dashboardViewModel,
+                sessionViewModel: sessionViewModel,
                 onSelectTab: { selection = $0 },
                 onEmergency: { showingEmergency = true }
             )
         } else if tab == .walk {
-            WalkingOverviewView(viewModel: dashboardViewModel)
+            WalkingOverviewView(viewModel: dashboardViewModel, sessionViewModel: sessionViewModel)
         } else {
             ContentUnavailableView(tab.rawValue, systemImage: tab.symbol,
                                    description: Text(tab.explanation))
@@ -48,5 +119,8 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
+    ContentView(
+        viewModel: DashboardViewModel(planStore: CoreDataWalkingPlanStore(inMemory: true), ownerID: "preview"),
+        sessionViewModel: WalkingSessionViewModel()
+    )
 }

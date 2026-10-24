@@ -9,9 +9,13 @@ import SwiftUI
 
 @main
 struct CardioSafeApp: App {
+    @State private var dashboardViewModel = DashboardViewModel(
+        planStore: CoreDataWalkingPlanStore(), ownerID: "local-device"
+    )
+    @State private var walkingSessionViewModel = WalkingSessionViewModel(store: CoreDataWalkingSessionStore(), ownerID: "local-device")
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(viewModel: dashboardViewModel, sessionViewModel: walkingSessionViewModel)
         }
     }
 }

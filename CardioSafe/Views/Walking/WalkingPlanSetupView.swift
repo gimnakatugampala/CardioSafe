@@ -3,12 +3,10 @@ import SwiftUI
 struct WalkingPlanSetupView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: WalkingPlanViewModel
-    private let onSave: (WalkingPlan) -> Void
     private let isEditing: Bool
 
-    init(plan: WalkingPlan?, onSave: @escaping (WalkingPlan) -> Void) {
-        _viewModel = State(initialValue: WalkingPlanViewModel(plan: plan))
-        self.onSave = onSave
+    init(plan: WalkingPlan?, onSave: @escaping (WalkingPlan) async throws -> Void) {
+        _viewModel = State(initialValue: WalkingPlanViewModel(plan: plan, savePlan: onSave))
         isEditing = plan != nil
     }
 
@@ -38,27 +36,39 @@ struct WalkingPlanSetupView: View {
                     Text("Only add a rest duration if your clinician provided one. Planned rest per break is separate from the actual total time spent resting.")
                 }
                 Section {
-                    Label("This plan is kept only while the app is open for now.", systemImage: "info.circle")
+                    Label("Saved on this device. Account sync is not connected.", systemImage: "lock.shield")
                         .font(.caption).foregroundStyle(.secondary)
                 }
+                if let error = viewModel.saveError {
+                    Section { errorLabel(error) }
+                }
             }
+            .disabled(viewModel.isSaving)
             .navigationTitle(isEditing ? "Edit walking plan" : "Walking plan")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .disabled(viewModel.isSaving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        if let plan = viewModel.submit() {
-                            onSave(plan)
-                            dismiss()
+                    Button {
+                        Task {
+                            if await viewModel.save() { dismiss() }
+                        }
+                    } label: {
+                        if viewModel.isSaving {
+                            ProgressView().accessibilityLabel("Saving plan")
+                        } else {
+                            Text("Save")
                         }
                     }
                     .fontWeight(.semibold)
+                    .disabled(viewModel.isSaving)
                 }
             }
             .tint(CardioSafeTheme.teal)
             .scrollDismissesKeyboard(.interactively)
+            .interactiveDismissDisabled(viewModel.isSaving)
         }
     }
 

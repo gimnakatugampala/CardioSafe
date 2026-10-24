@@ -14,20 +14,48 @@ final class DashboardViewModel {
     }
 
     private(set) var snapshot: DashboardSnapshot
+    private(set) var isLoadingPlan = false
+    private(set) var isSavingPlan = false
+    private(set) var hasLoadedPlan = false
+    private(set) var planLoadError: String?
+    @ObservationIgnored private let planStore: any WalkingPlanStoring
+    @ObservationIgnored private let ownerID: String
 
-    init(snapshot: DashboardSnapshot) {
+    init(snapshot: DashboardSnapshot, planStore: any WalkingPlanStoring, ownerID: String) {
         self.snapshot = snapshot
+        self.planStore = planStore
+        self.ownerID = ownerID
     }
 
-    convenience init() {
-        self.init(snapshot: .unconfigured)
+    convenience init(planStore: any WalkingPlanStoring, ownerID: String) {
+        self.init(snapshot: .unconfigured, planStore: planStore, ownerID: ownerID)
     }
 
-    func saveWalkingPlan(_ plan: WalkingPlan) {
+    func loadWalkingPlan() async {
+        guard !hasLoadedPlan, !isLoadingPlan, !isSavingPlan else { return }
+        isLoadingPlan = true
+        planLoadError = nil
+        defer { isLoadingPlan = false }
+        do {
+            snapshot.walkingPlan = try await planStore.loadPlan(for: ownerID)
+            hasLoadedPlan = true
+        } catch {
+            planLoadError = "Your saved walking plan could not be loaded. Retry before making changes."
+        }
+    }
+
+    func saveWalkingPlan(_ plan: WalkingPlan) async throws {
+        guard hasLoadedPlan else { throw WalkingPlanStorageError.planNotLoaded }
+        guard !isSavingPlan else { throw WalkingPlanStorageError.saveInProgress }
+        isSavingPlan = true
+        defer { isSavingPlan = false }
+        try await planStore.savePlan(plan, for: ownerID)
         snapshot.walkingPlan = plan
     }
 
     var walkingStatus: String {
+        if isLoadingPlan { return "Loading walking plan…" }
+        if planLoadError != nil { return "Walking plan unavailable" }
         if let minutes = snapshot.walkingTargetMinutes {
             return "\(minutes) minute target"
         }
@@ -35,7 +63,9 @@ final class DashboardViewModel {
     }
 
     var walkingTitle: String {
-        snapshot.walkingTargetMinutes == nil ? "Set up your walking plan" : "Your walking plan"
+        if isLoadingPlan { return "Loading walking plan…" }
+        if planLoadError != nil { return "Walking plan unavailable" }
+        return snapshot.walkingTargetMinutes == nil ? "Set up your walking plan" : "Your walking plan"
     }
 
     var walkingDescription: String {
@@ -50,6 +80,22 @@ final class DashboardViewModel {
 
     var walkingActionTitle: String {
         snapshot.walkingTargetMinutes == nil ? "View walking setup" : "Review walking plan"
+    }
+
+    var walkingHomeTitle: String {
+        if isLoadingPlan || planLoadError != nil { return walkingStatus }
+        return snapshot.walkingPlan == nil ? "Plan your next walk" : walkingStatus
+    }
+
+    var walkingHomeSubtitle: String {
+        if isLoadingPlan { return "Reading your saved walking target" }
+        if planLoadError != nil { return "Open Walk to retry loading your plan" }
+        if let rest = snapshot.walkingPlan?.restMinutesPerBreak {
+            return "\(rest) min planned rest per break · Review plan"
+        }
+        return snapshot.walkingPlan == nil
+            ? "Set the walking target from your clinician"
+            : "Clinician-provided target · Review plan"
     }
 
     var healthMetrics: [MetricDisplay] {

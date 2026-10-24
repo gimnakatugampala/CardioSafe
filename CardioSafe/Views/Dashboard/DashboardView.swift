@@ -3,12 +3,14 @@ import MapKit
 
 struct DashboardView: View {
     let viewModel: DashboardViewModel
+    let sessionViewModel: WalkingSessionViewModel
     let onSelectTab: (AppTab) -> Void
     let onEmergency: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var showingWalkingMap = false
+    @State private var showingSession = false
 
     private var surface: Color { CardioSafeTheme.surface(for: colorScheme) }
     private var ink: Color { CardioSafeTheme.text(for: colorScheme) }
@@ -32,6 +34,7 @@ struct DashboardView: View {
         .foregroundStyle(ink)
         .background(CardioSafeTheme.background(for: colorScheme))
         .sheet(isPresented: $showingWalkingMap) { WalkingMapView() }
+        .fullScreenCover(isPresented: $showingSession) { WalkingSessionView(viewModel: sessionViewModel) }
     }
 
     private var recoveryOverview: some View {
@@ -146,7 +149,11 @@ struct DashboardView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Explore hospitals, parks and walking routes on the map")
-                Button { onSelectTab(.walk) } label: {
+                Button {
+                    if sessionViewModel.isActive || sessionViewModel.start(plan: viewModel.snapshot.walkingPlan) {
+                        showingSession = true
+                    }
+                } label: {
                     HStack(spacing: 14) {
                         Image(systemName: "figure.walk")
                             .font(.title3).foregroundStyle(CardioSafeTheme.teal)
@@ -154,9 +161,9 @@ struct DashboardView: View {
                             .background(CardioSafeTheme.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 5) {
-                            Text(viewModel.snapshot.walkingPlan == nil ? "Plan your next walk" : viewModel.walkingStatus)
+                            Text(sessionViewModel.isActive ? "Return to walk" : "Start walking")
                                 .font(.subheadline.bold())
-                            Text(walkingSubtitle).font(.caption).foregroundStyle(.secondary)
+                            Text(sessionViewModel.isActive ? "Your session is still running" : "One tap to start your walking session").font(.caption).foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         Spacer(minLength: 0)
@@ -171,15 +178,6 @@ struct DashboardView: View {
             .clipShape(RoundedRectangle(cornerRadius: 18))
             .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(ink.opacity(0.05)))
         }
-    }
-
-    private var walkingSubtitle: String {
-        if let rest = viewModel.snapshot.walkingPlan?.restMinutesPerBreak {
-            return "\(rest) min planned rest per break · Review plan"
-        }
-        return viewModel.snapshot.walkingPlan == nil
-            ? "Set the walking target from your clinician"
-            : "Clinician-provided target · Review plan"
     }
 
     private var careShortcuts: some View {
