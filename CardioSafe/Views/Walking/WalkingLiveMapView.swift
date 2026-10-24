@@ -2,15 +2,21 @@ import SwiftUI
 import MapKit
 
 struct WalkingLiveMapView: View {
-    @State private var locationModel = WalkingLocationViewModel()
+    let sessionViewModel: WalkingSessionViewModel
+    private var locationModel: WalkingLocationViewModel { sessionViewModel.locationModel }
     @State private var camera: MapCameraPosition = .userLocation(followsHeading: false, fallback: .region(
         MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 6.9271, longitude: 79.8612),
                            span: MKCoordinateSpan(latitudeDelta: 0.015, longitudeDelta: 0.015))))
-    @Environment(\.scenePhase) private var scenePhase
     @State private var followsPatient = true
 
     var body: some View {
         Map(position: $camera) {
+            ForEach(Array((sessionViewModel.session?.routeSegments ?? []).enumerated()), id: \.offset) { _, segment in
+                if segment.points.count > 1 {
+                    MapPolyline(coordinates: segment.points.map(\.coordinate))
+                        .stroke(CardioSafeTheme.teal, style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
+                }
+            }
             if let location = locationModel.location {
                 Annotation("Your location", coordinate: location.coordinate) {
                     ZStack {
@@ -33,7 +39,7 @@ struct WalkingLiveMapView: View {
             camera = .region(MKCoordinateRegion(center: location.coordinate,
                                                 latitudinalMeters: 650, longitudinalMeters: 650))
         }
-        .overlay(alignment: .trailing) {
+        .overlay(alignment: .topTrailing) {
             Button {
                 followsPatient = true
                 locationModel.start()
@@ -47,7 +53,7 @@ struct WalkingLiveMapView: View {
                     .background(.regularMaterial, in: Circle())
             }
             .accessibilityLabel("Centre map on my location")
-            .padding(.trailing, 20)
+            .padding(.trailing, 20).padding(.top, 165)
         }
         .overlay(alignment: .topLeading) {
             if let error = locationModel.errorMessage {
@@ -59,11 +65,6 @@ struct WalkingLiveMapView: View {
                     .font(.caption).padding(10).background(.regularMaterial, in: Capsule())
                     .padding(.horizontal, 20).padding(.top, 110)
             }
-        }
-        .onAppear { locationModel.start() }
-        .onDisappear { locationModel.stop() }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active { locationModel.start() } else { locationModel.stop() }
         }
     }
 }

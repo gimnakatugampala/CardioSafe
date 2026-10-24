@@ -5,6 +5,7 @@ struct WalkingSessionView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @ScaledMetric(relativeTo: .largeTitle) private var timerSize = 56
     @State private var showingFinishConfirmation = false
     @State private var showingEmergency = false
@@ -87,7 +88,7 @@ struct WalkingSessionView: View {
     }
 
     private var activeMapScreen: some View {
-        WalkingLiveMapView()
+        WalkingLiveMapView(sessionViewModel: viewModel)
             .ignoresSafeArea()
             .safeAreaInset(edge: .top, spacing: 0) {
                 HStack {
@@ -132,10 +133,11 @@ struct WalkingSessionView: View {
                 VStack(alignment: .trailing, spacing: 5) {
                     Text(resting ? "Walking paused" : (viewModel.session?.plan.map { "Target \($0.walkingMinutes) min" } ?? "No target set"))
                         .font(.subheadline.weight(.medium))
-                    Text("Total rest \(viewModel.durationText(timing.restingSeconds))")
+                    Text("Rest \(viewModel.durationText(timing.restingSeconds)) · \(Int(viewModel.session?.routeDistanceMetres ?? 0)) m")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
+            healthReadings
             if viewModel.session?.plan != nil {
                 ProgressView(value: timing.progress).tint(CardioSafeTheme.teal)
                     .accessibilityLabel("Walking target progress")
@@ -159,6 +161,20 @@ struct WalkingSessionView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 28))
         .padding(.horizontal, 12).padding(.bottom, 8)
         .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private var healthReadings: some View {
+        if typeSize.isAccessibilitySize || verticalSizeClass == .compact {
+            ScrollView {
+                WalkingHealthPanel(model: viewModel.healthModel,
+                                   gpsDistance: (viewModel.session?.routeDistanceMetres ?? 0) > 0 ? viewModel.session?.routeDistanceMetres : nil)
+            }
+            .frame(maxHeight: verticalSizeClass == .compact ? 100 : 200)
+        } else {
+            WalkingHealthPanel(model: viewModel.healthModel,
+                               gpsDistance: (viewModel.session?.routeDistanceMetres ?? 0) > 0 ? viewModel.session?.routeDistanceMetres : nil)
+        }
     }
 
     private var statusHeader: some View {
@@ -341,8 +357,8 @@ struct WalkingSessionView: View {
                 }
             }
             .padding(18).background(surface, in: RoundedRectangle(cornerRadius: 18))
-            Label("No GPS route was recorded", systemImage: "location.slash")
-                .font(.caption).foregroundStyle(.secondary)
+            WalkingSavedHealthView(snapshot: session.healthSnapshot)
+            WalkingRecordedRouteView(session: session)
         }
     }
 

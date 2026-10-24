@@ -1,13 +1,19 @@
 import Foundation
+import CoreLocation
 import Observation
 
 @MainActor
 @Observable
 final class WalkingSessionViewModel {
+    #if os(iOS)
+    let locationModel = WalkingLocationViewModel()
+    let healthModel = WalkingHealthViewModel()
+    #endif
     private(set) var phase: WalkingSessionPhase = .ready
     private(set) var session: WalkingSession?
     private(set) var completedSessions: [WalkingSession] = []
     @ObservationIgnored private let clock: any WalkingSessionClock
+    @ObservationIgnored private var needsRouteSegment = true
     @ObservationIgnored private var intervalStart: WalkingSessionInstant?
 
     private(set) var isLoadingHistory = false
@@ -82,7 +88,13 @@ final class WalkingSessionViewModel {
         let now = clock.read()
         session = WalkingSession(id: UUID(), plan: plan, startedAt: now.date, endedAt: nil, intervals: [])
         intervalStart = now
+        needsRouteSegment = true
         phase = .walking
+        #if os(iOS)
+        locationModel.onLocation = { [weak self] in self?.recordLocation($0) }
+        locationModel.start()
+        healthModel.start(at: now.date)
+        #endif
         return true
     }
 
@@ -92,6 +104,7 @@ final class WalkingSessionViewModel {
         let now = clock.read()
         closeInterval(at: now, kind: .walking)
         intervalStart = now
+        needsRouteSegment = true
         phase = .resting
         return true
     }
@@ -102,6 +115,7 @@ final class WalkingSessionViewModel {
         let now = clock.read()
         closeInterval(at: now, kind: .resting)
         intervalStart = now
+        needsRouteSegment = true
         phase = .walking
         return true
     }
@@ -114,9 +128,49 @@ final class WalkingSessionViewModel {
         session?.endedAt = now.date
         intervalStart = nil
         phase = .finished
+        #if os(iOS)
+        session?.healthSnapshot = healthModel.snapshot(at: now.date)
+        locationModel.stop()
+        locationModel.onLocation = nil
+        healthModel.stop()
+        #endif
         if let session { completedSessions.insert(session, at: 0) }
         Task { await savePendingSessions() }
         return true
+    }
+
+    func breakRoute() { needsRouteSegment = true }
+
+    func recordLocation(_ location: CLLocation, receivedAt: Date = .now) {
+        guard phase == .walking, let intervalStart,
+              CLLocationCoordinate2DIsValid(location.coordinate),
+              location.horizontalAccuracy >= 0, location.horizontalAccuracy <= 50,
+              receivedAt.timeIntervalSince(location.timestamp) >= -2,
+              receivedAt.timeIntervalSince(location.timestamp) <= 15,
+              location.timestamp >= intervalStart.date else { return }
+        let point = WalkingRoutePoint(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude,
+                                      recordedAt: location.timestamp, accuracyMetres: location.horizontalAccuracy)
+        var segments = session?.routeSegments ?? []
+        if let last = segments.last?.points.last {
+            let gap = point.recordedAt.timeIntervalSince(last.recordedAt)
+            guard gap > 0 else { return }
+            if gap > 30 { needsRouteSegment = true }
+            if !needsRouteSegment {
+                let distance = location.distance(from: CLLocation(latitude: last.latitude, longitude: last.longitude))
+                if distance / gap > 5 {
+                    needsRouteSegment = true
+                    return
+                }
+                guard distance >= 3 else { return }
+            }
+        }
+        if needsRouteSegment || segments.isEmpty {
+            segments.append(WalkingRouteSegment(points: [point]))
+            needsRouteSegment = false
+        } else {
+            segments[segments.count - 1].points.append(point)
+        }
+        session?.routeSegments = segments
     }
 
     func timing() -> WalkingSessionTiming {

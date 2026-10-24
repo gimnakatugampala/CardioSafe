@@ -1,4 +1,5 @@
 import CoreData
+import CoreLocation
 import Foundation
 
 @MainActor
@@ -84,6 +85,15 @@ final class CoreDataWalkingSessionStore: WalkingSessionStoring {
         guard session.endedAt != nil, !session.intervals.isEmpty,
               session.intervals.allSatisfy({ $0.durationSeconds.isFinite && $0.durationSeconds >= 0 }) else {
             throw WalkingSessionStorageError.invalidRecord
+        }
+        if let health = session.healthSnapshot, !health.isValid {
+            throw WalkingSessionStorageError.invalidRecord
+        }
+        for segment in session.routeSegments ?? [] {
+            guard segment.points.allSatisfy({
+                CLLocationCoordinate2DIsValid($0.coordinate) && $0.accuracyMetres.isFinite
+                    && $0.accuracyMetres >= 0 && $0.accuracyMetres <= 50
+            }) else { throw WalkingSessionStorageError.invalidRecord }
         }
         if let plan = session.plan, plan.walkingMinutes <= 0 || plan.walkingMinutes > Int.max / 60 {
             throw WalkingSessionStorageError.invalidRecord

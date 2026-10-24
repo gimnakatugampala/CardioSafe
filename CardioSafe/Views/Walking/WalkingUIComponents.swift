@@ -71,7 +71,7 @@ struct WalkingModeNote: View {
         VStack(alignment: .leading, spacing: 7) {
             Label("Walking data", systemImage: "figure.walk")
                 .font(.caption.weight(.semibold))
-            Text("Walking and rest times are saved. Live location is available during a walk; routes and Apple Health measurements are not saved.")
+            Text("Walking time, rest breaks and GPS paths are saved on this device. GPS continues while a session is active, including with the screen locked. Available health readings are saved when you finish. They require access and a supported data source.")
                 .font(.caption).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -7,6 +7,7 @@ final class WalkingLocationViewModel: NSObject, CLLocationManagerDelegate {
     private(set) var location: CLLocation?
     private(set) var authorization: CLAuthorizationStatus = .notDetermined
     private(set) var errorMessage: String?
+    @ObservationIgnored var onLocation: ((CLLocation) -> Void)?
     @ObservationIgnored private let manager = CLLocationManager()
     @ObservationIgnored private var wantsUpdates = false
 
@@ -16,6 +17,11 @@ final class WalkingLocationViewModel: NSObject, CLLocationManagerDelegate {
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.distanceFilter = 5
         manager.activityType = .fitness
+        if (Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String])?.contains("location") == true {
+            manager.allowsBackgroundLocationUpdates = true
+            manager.showsBackgroundLocationIndicator = true
+            manager.pausesLocationUpdatesAutomatically = false
+        }
         authorization = manager.authorizationStatus
     }
 
@@ -51,10 +57,11 @@ final class WalkingLocationViewModel: NSObject, CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let latest = locations.last, latest.horizontalAccuracy >= 0,
+        guard wantsUpdates, let latest = locations.last, latest.horizontalAccuracy >= 0,
               abs(latest.timestamp.timeIntervalSinceNow) < 30 else { return }
         location = latest
         errorMessage = nil
+        for fix in locations { onLocation?(fix) }
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
