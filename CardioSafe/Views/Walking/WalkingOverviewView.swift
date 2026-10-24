@@ -5,6 +5,7 @@ struct WalkingOverviewView: View {
     let viewModel: DashboardViewModel
     @Environment(\.colorScheme) private var colorScheme
     @State private var showingPlanSetup = false
+    @State private var showingWalkingMap = false
 
     private let previewRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 6.9271, longitude: 79.8612),
@@ -23,7 +24,8 @@ struct WalkingOverviewView: View {
                     HStack {
                         Label("Map preview", systemImage: "map")
                         Spacer()
-                        Text("Colombo").foregroundStyle(.secondary)
+                        Button("Explore map") { showingWalkingMap = true }
+                            .frame(minHeight: 44)
                     }
                     .font(.caption.weight(.semibold)).padding(14)
                     Map(initialPosition: .region(previewRegion))
@@ -60,5 +62,6 @@ struct WalkingOverviewView: View {
                 viewModel.saveWalkingPlan(plan)
             }
         }
+        .sheet(isPresented: $showingWalkingMap) { WalkingMapView() }
     }
 }
