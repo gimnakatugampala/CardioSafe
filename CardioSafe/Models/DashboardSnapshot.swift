@@ -17,13 +17,15 @@ struct DashboardSnapshot {
         case connected
     }
 
-    let walkingTargetMinutes: Int?
+    var walkingPlan: WalkingPlan?
+
+    var walkingTargetMinutes: Int? { walkingPlan?.walkingMinutes }
     let healthConnection: Connection
     let healthReadings: [HealthMetric: HealthReading]
     let guardianConnection: Connection
 
     static let unconfigured = DashboardSnapshot(
-        walkingTargetMinutes: nil,
+        walkingPlan: nil,
         healthConnection: .notConnected,
         healthReadings: [:],
         guardianConnection: .notConnected

@@ -4,6 +4,7 @@ import MapKit
 struct WalkingOverviewView: View {
     let viewModel: DashboardViewModel
     @Environment(\.colorScheme) private var colorScheme
+    @State private var showingPlanSetup = false
 
     private let previewRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 6.9271, longitude: 79.8612),
@@ -39,6 +40,11 @@ struct WalkingOverviewView: View {
                     Label(viewModel.walkingStatus, systemImage: "figure.walk")
                         .font(.headline)
                     Text(viewModel.walkingDescription).font(.subheadline).foregroundStyle(.secondary)
+                    Button(viewModel.snapshot.walkingPlan == nil ? "Set up walking plan" : "Edit walking plan") {
+                        showingPlanSetup = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(CardioSafeTheme.teal)
                     Divider()
                     Text("Walking sessions are not available in this version.")
                         .font(.caption).foregroundStyle(.secondary)
@@ -49,5 +55,10 @@ struct WalkingOverviewView: View {
             .frame(maxWidth: 900).padding(20).frame(maxWidth: .infinity)
         }
         .background(CardioSafeTheme.background(for: colorScheme))
+        .sheet(isPresented: $showingPlanSetup) {
+            WalkingPlanSetupView(plan: viewModel.snapshot.walkingPlan) { plan in
+                viewModel.saveWalkingPlan(plan)
+            }
+        }
     }
 }

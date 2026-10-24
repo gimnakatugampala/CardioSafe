@@ -23,6 +23,10 @@ final class DashboardViewModel {
         self.init(snapshot: .unconfigured)
     }
 
+    func saveWalkingPlan(_ plan: WalkingPlan) {
+        snapshot.walkingPlan = plan
+    }
+
     var walkingStatus: String {
         if let minutes = snapshot.walkingTargetMinutes {
             return "\(minutes) minute target"
@@ -31,18 +35,21 @@ final class DashboardViewModel {
     }
 
     var walkingTitle: String {
-        snapshot.walkingTargetMinutes == nil ? "Set up your walking plan" : "Your next walking session"
+        snapshot.walkingTargetMinutes == nil ? "Set up your walking plan" : "Your walking plan"
     }
 
     var walkingDescription: String {
         if let minutes = snapshot.walkingTargetMinutes {
-            return "Your saved clinician-provided duration is \(minutes) minutes."
+            if let rest = snapshot.walkingPlan?.restMinutesPerBreak {
+                return "Walk \(minutes) min · Planned rest \(rest) min per break."
+            }
+            return "Your clinician-provided walking target is \(minutes) minutes."
         }
         return "Add the walking duration provided by your clinician."
     }
 
     var walkingActionTitle: String {
-        snapshot.walkingTargetMinutes == nil ? "View walking setup" : "View my walking plan"
+        snapshot.walkingTargetMinutes == nil ? "View walking setup" : "Review walking plan"
     }
 
     var healthMetrics: [MetricDisplay] {
