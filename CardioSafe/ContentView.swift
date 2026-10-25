@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
+    @AppStorage("hasCompletedIntroduction") private var hasCompletedIntroduction = false
     @AppStorage("appearancePreference") private var appearance = "system"
     @State private var selection: AppTab = .home
     @State private var accountModel = AccountViewModel(service: FirebaseAccountService())
@@ -43,6 +44,14 @@ struct ContentView: View {
         .tint(CardioSafeTheme.teal)
         .preferredColorScheme(appearance == "dark" ? .dark : appearance == "light" ? .light : nil)
         .sheet(isPresented: $showingEmergency) { EmergencyHelpView() }
+        .fullScreenCover(isPresented: Binding(get: { !hasCompletedIntroduction }, set: { _ in })) {
+            OnboardingView(account: accountModel.account, onFinish: {
+                hasCompletedIntroduction = true
+            }, onSetUpProfile: {
+                selection = .profile
+                hasCompletedIntroduction = true
+            })
+        }
         .task {
             await accountModel.restore()
             await dashboardViewModel.loadWalkingPlan()
@@ -118,7 +127,7 @@ struct ContentView: View {
         } else if tab == .care {
             CareFinderView()
         } else if tab == .records {
-            WalkingHistoryView(viewModel: sessionViewModel, title: "Records")
+            RecordsView(sessionModel: sessionViewModel)
         } else if tab == .walk {
             WalkingOverviewView(viewModel: dashboardViewModel, sessionViewModel: sessionViewModel)
         } else {

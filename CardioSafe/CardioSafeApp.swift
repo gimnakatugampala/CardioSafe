@@ -10,6 +10,8 @@ import SwiftUI
 @main
 struct CardioSafeApp: App {
     init() { FirebaseSetup.configure() }
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var appLock = AppLockViewModel()
     @State private var dashboardViewModel = DashboardViewModel(
         planStore: CoreDataWalkingPlanStore(), ownerID: "local-device", healthService: HealthKitDashboardService()
     )
@@ -17,6 +19,21 @@ struct CardioSafeApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(viewModel: dashboardViewModel, sessionViewModel: walkingSessionViewModel)
+                .environment(appLock)
+                .accessibilityHidden(appLock.needsShield)
+                .background {
+                    AppLockShield(model: appLock, isVisible: appLock.needsShield)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+                .onChange(of: scenePhase, initial: true) { _, phase in
+                    switch phase {
+                    case .active: appLock.becameActive()
+                    case .inactive: appLock.becameInactive()
+                    case .background: appLock.enteredBackground()
+                    @unknown default: appLock.becameInactive()
+                    }
+                }
         }
     }
 }

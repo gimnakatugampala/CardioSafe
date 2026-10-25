@@ -7,9 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		CAFE00000000000000000001 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = CAFE00000000000000000011 /* FirebaseAuth */; };
-		CAFE00000000000000000002 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = CAFE00000000000000000012 /* FirebaseFirestore */; };
-		CAFE00000000000000000003 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = CAFE00000000000000000013 /* FirebaseCore */; };
+        CAFE00000000000000000001 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = CAFE00000000000000000011 /* FirebaseAuth */; };
+        CAFE00000000000000000002 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = CAFE00000000000000000012 /* FirebaseFirestore */; };
+        CAFE00000000000000000003 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = CAFE00000000000000000013 /* FirebaseCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,9 +29,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CAFE00000000000000000001 /* FirebaseAuth in Frameworks */,
-				CAFE00000000000000000002 /* FirebaseFirestore in Frameworks */,
-				CAFE00000000000000000003 /* FirebaseCore in Frameworks */,
+                CAFE00000000000000000001 /* FirebaseAuth in Frameworks */,
+                CAFE00000000000000000002 /* FirebaseFirestore in Frameworks */,
+                CAFE00000000000000000003 /* FirebaseCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -74,9 +74,9 @@
 			);
 			name = CardioSafe;
 			packageProductDependencies = (
-				CAFE00000000000000000011 /* FirebaseAuth */,
-				CAFE00000000000000000012 /* FirebaseFirestore */,
-				CAFE00000000000000000013 /* FirebaseCore */,
+                CAFE00000000000000000011 /* FirebaseAuth */,
+                CAFE00000000000000000012 /* FirebaseFirestore */,
+                CAFE00000000000000000013 /* FirebaseCore */,
 			);
 			productName = CardioSafe;
 			productReference = B15FE0573081E803008120ED /* CardioSafe.app */;
@@ -106,10 +106,8 @@
 			);
 			mainGroup = B15FE04E3081E803008120ED;
 			minimizedProjectReferenceProxies = 1;
-			packageReferences = (
-				CAFE00000000000000000010 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
-			);
 			preferredProjectObjectVersion = 77;
+            packageReferences = (CAFE00000000000000000010 /* Firebase */,);
 			productRefGroup = B15FE0583081E803008120ED /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -138,6 +136,19 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+        CAFE00000000000000000010 /* Firebase */ = {
+            isa = XCRemoteSwiftPackageReference;
+            repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+            requirement = {kind = exactVersion; version = 13.1.1;};
+        };
+/* End XCRemoteSwiftPackageReference section */
+/* Begin XCSwiftPackageProductDependency section */
+        CAFE00000000000000000011 /* FirebaseAuth */ = {isa = XCSwiftPackageProductDependency; package = CAFE00000000000000000010; productName = FirebaseAuth;};
+        CAFE00000000000000000012 /* FirebaseFirestore */ = {isa = XCSwiftPackageProductDependency; package = CAFE00000000000000000010; productName = FirebaseFirestore;};
+        CAFE00000000000000000013 /* FirebaseCore */ = {isa = XCSwiftPackageProductDependency; package = CAFE00000000000000000010; productName = FirebaseCore;};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		B15FE0603081E803008120ED /* Debug */ = {
@@ -259,18 +270,20 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Config/CardioSafe.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Config/CardioSafe-Info.plist";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "CardioSafe reads steps, walking distance, heart rate and active energy to show your daily activity and walking session readings.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "In the iOS Simulator, CardioSafe saves clearly identified test samples to HealthKit to demonstrate saving and querying health data.";
+                INFOPLIST_FILE = "Config/CardioSafe-Info.plist";
+                CODE_SIGN_ENTITLEMENTS = Config/CardioSafe.entitlements;
+                INFOPLIST_KEY_NSHealthUpdateUsageDescription = "In the iOS Simulator, CardioSafe saves clearly identified test samples to HealthKit to demonstrate saving and querying health data.";
+                INFOPLIST_KEY_NSHealthShareUsageDescription = "CardioSafe reads steps, walking distance, heart rate and active energy to show your daily activity and walking session readings.";
+                INFOPLIST_KEY_NSCameraUsageDescription = "CardioSafe uses the camera to scan documents that you review and save as PDFs on this device.";
+                INFOPLIST_KEY_NSFaceIDUsageDescription = "CardioSafe uses Face ID to unlock your profile and health records when app lock is enabled.";
+                INFOPLIST_KEY_NSMotionUsageDescription = "CardioSafe uses motion data to show your steps and walking distance during a session.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "CardioSafe uses your location to show where you are on the map during a walking session.";
-				INFOPLIST_KEY_NSMotionUsageDescription = "CardioSafe uses motion data to show your steps and walking distance during a session.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -307,18 +320,20 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Config/CardioSafe.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Config/CardioSafe-Info.plist";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "CardioSafe reads steps, walking distance, heart rate and active energy to show your daily activity and walking session readings.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "In the iOS Simulator, CardioSafe saves clearly identified test samples to HealthKit to demonstrate saving and querying health data.";
+                INFOPLIST_FILE = "Config/CardioSafe-Info.plist";
+                CODE_SIGN_ENTITLEMENTS = Config/CardioSafe.entitlements;
+                INFOPLIST_KEY_NSHealthUpdateUsageDescription = "In the iOS Simulator, CardioSafe saves clearly identified test samples to HealthKit to demonstrate saving and querying health data.";
+                INFOPLIST_KEY_NSHealthShareUsageDescription = "CardioSafe reads steps, walking distance, heart rate and active energy to show your daily activity and walking session readings.";
+                INFOPLIST_KEY_NSCameraUsageDescription = "CardioSafe uses the camera to scan documents that you review and save as PDFs on this device.";
+                INFOPLIST_KEY_NSFaceIDUsageDescription = "CardioSafe uses Face ID to unlock your profile and health records when app lock is enabled.";
+                INFOPLIST_KEY_NSMotionUsageDescription = "CardioSafe uses motion data to show your steps and walking distance during a session.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "CardioSafe uses your location to show where you are on the map during a walking session.";
-				INFOPLIST_KEY_NSMotionUsageDescription = "CardioSafe uses motion data to show your steps and walking distance during a session.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -372,35 +387,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		CAFE00000000000000000010 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
-			requirement = {
-				kind = exactVersion;
-				version = 13.1.1;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		CAFE00000000000000000011 /* FirebaseAuth */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CAFE00000000000000000010 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAuth;
-		};
-		CAFE00000000000000000012 /* FirebaseFirestore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CAFE00000000000000000010 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseFirestore;
-		};
-		CAFE00000000000000000013 /* FirebaseCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CAFE00000000000000000010 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseCore;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = B15FE04F3081E803008120ED /* Project object */;
 }
