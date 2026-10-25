@@ -9,6 +9,7 @@ import SwiftUI
 
 @main
 struct CardioSafeApp: App {
+    init() { FirebaseSetup.configure() }
     @State private var dashboardViewModel = DashboardViewModel(
         planStore: CoreDataWalkingPlanStore(), ownerID: "local-device", healthService: HealthKitDashboardService()
     )

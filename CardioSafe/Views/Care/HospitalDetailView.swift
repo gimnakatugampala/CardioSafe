@@ -50,8 +50,7 @@ struct HospitalDetailView: View {
                     if let contactError { Text(contactError).font(.caption).foregroundStyle(.secondary) }
                     Divider()
                     Text("Department queues").font(.headline)
-                    Text("Live department queues are unavailable. Hospital staff updates are not connected yet.")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                    HospitalQueuesView(mapPlaceID: hospital.id)
                     Text("Ambulance availability").font(.headline)
                     Text("Availability and dispatch are not connected. Opening this hospital does not request an ambulance.")
                         .font(.subheadline).foregroundStyle(.secondary)

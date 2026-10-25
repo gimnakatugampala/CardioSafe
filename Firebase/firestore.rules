@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function assignedStaff(hospitalID) {
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.role == 'staff'
+        && request.auth.token.hospitalIDs is list
+        && hospitalID in request.auth.token.hospitalIDs;
+    }
+    match /hospitals/{hospitalID} {
+      allow read: if signedIn();
+      allow write: if false;
+      match /departments/{departmentID} {
+        allow read: if signedIn();
+        allow update: if assignedStaff(hospitalID)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['waitingCount', 'updatedAt', 'updatedBy'])
+          && request.resource.data.waitingCount is int
+          && request.resource.data.waitingCount >= 0
+          && request.resource.data.waitingCount <= 9999
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.updatedBy == request.auth.uid;
+        allow create, delete: if false;
+      }
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

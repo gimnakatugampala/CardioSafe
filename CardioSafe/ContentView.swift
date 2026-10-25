@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var selection: AppTab = .home
+    @State private var accountModel = AccountViewModel(service: FirebaseAccountService())
     @State private var showingEmergency = false
     @State private var showingWalkingSession = false
     @State private var dashboardViewModel: DashboardViewModel
@@ -41,6 +42,7 @@ struct ContentView: View {
         .tint(CardioSafeTheme.teal)
         .sheet(isPresented: $showingEmergency) { EmergencyHelpView() }
         .task {
+            await accountModel.restore()
             await dashboardViewModel.loadWalkingPlan()
             await sessionViewModel.loadHistory()
         }
@@ -109,6 +111,8 @@ struct ContentView: View {
                 onSelectTab: { selection = $0 },
                 onEmergency: { showingEmergency = true }
             )
+        } else if tab == .profile {
+            AccountView(model: accountModel, sessionModel: sessionViewModel)
         } else if tab == .care {
             CareFinderView()
         } else if tab == .walk {

@@ -85,7 +85,7 @@ struct CareFinderView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                Label("Department queues and ambulance availability are not connected.", systemImage: "info.circle")
+                Label("Open a hospital for available department updates. Ambulance availability is not connected.", systemImage: "info.circle")
                     .font(.caption).foregroundStyle(.secondary)
             }
             .padding(20).frame(maxWidth: 850).frame(maxWidth: .infinity)
