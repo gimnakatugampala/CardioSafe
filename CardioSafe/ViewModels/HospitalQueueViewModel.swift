@@ -62,7 +62,8 @@ final class HospitalQueueViewModel {
                         guard let name = data["name"] as? String, let count = data["waitingCount"] as? Int else { return nil }
                         let queue = DepartmentQueue(id: document.documentID, name: name, waitingCount: count,
                                                     updatedAt: (data["updatedAt"] as? Timestamp)?.dateValue(),
-                                                    isCached: snapshot.metadata.isFromCache || document.metadata.hasPendingWrites)
+                                                    isCached: snapshot.metadata.isFromCache || document.metadata.hasPendingWrites,
+                                                    isDemo: data["isDemo"] as? Bool ?? false)
                         return queue.isValid ? queue : nil
                     }
                     self.departments = values.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }

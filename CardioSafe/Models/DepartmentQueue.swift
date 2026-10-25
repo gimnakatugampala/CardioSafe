@@ -6,5 +6,6 @@ struct DepartmentQueue: Identifiable, Equatable {
     let waitingCount: Int
     let updatedAt: Date?
     let isCached: Bool
+    var isDemo = false
     var isValid: Bool { !name.isEmpty && (0...9999).contains(waitingCount) }
 }

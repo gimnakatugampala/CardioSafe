@@ -32,6 +32,10 @@ struct QueueTimestampView: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
             VStack(alignment: .leading, spacing: 3) {
+                if queue.isDemo {
+                    Label("Demonstration data · Not the hospital’s actual queue", systemImage: "testtube.2")
+                        .foregroundStyle(.orange)
+                }
                 if let date = queue.updatedAt {
                     Text("Updated \(date.formatted(.relative(presentation: .named)))")
                     if context.date.timeIntervalSince(date) > 900 { Text("Update needed · Confirm with hospital") }

@@ -60,7 +60,11 @@ final class FirebaseAccountService: AccountServicing {
         case .emailAlreadyInUse: .emailInUse
         case .weakPassword: .weakPassword
         case .networkError: .network
-        default: .failed
+        case .keychainError: .secureStorage
+        case .userDisabled: .disabled
+        case .operationNotAllowed, .appNotAuthorized, .invalidAPIKey: .unavailable
+        case .tooManyRequests: .rateLimited
+        default: .serviceFailure((error as NSError).code)
         }
     }
 }

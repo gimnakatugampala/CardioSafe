@@ -54,7 +54,10 @@ private struct QueueEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(queue.name) { Stepper("\(count) waiting", value: $count, in: 0...9999) }
+                Section(queue.name) {
+                    if queue.isDemo { Label("Demonstration queue", systemImage: "testtube.2") }
+                    Stepper("\(count) waiting", value: $count, in: 0...9999)
+                }
                 if let error = model.errorMessage { Text(error).foregroundStyle(.red) }
                 Button(model.isSaving ? "Saving…" : "Publish queue count") {
                     Task { if await model.update(queue, count: count, account: account) { dismiss() } }
