@@ -46,7 +46,8 @@ struct WalkingOverviewView: View {
                     Text(error).font(.caption).foregroundStyle(.red)
                     Button("Retry saving walks") { Task { await sessionViewModel.savePendingSessions() } }
                 }
-                WalkingModeNote().padding(.horizontal, 2)
+                DisclosureGroup("About walking tracking") { WalkingModeNote().padding(.top, 10) }
+                    .font(.subheadline).padding(.horizontal, 2)
             }
             .frame(maxWidth: 640, alignment: .leading)
             .padding(20).frame(maxWidth: .infinity)

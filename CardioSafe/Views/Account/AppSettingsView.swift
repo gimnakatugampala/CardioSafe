@@ -69,7 +69,7 @@ struct AppSettingsView: View {
         }
         .scrollContentBackground(.hidden)
         .background(CardioSafeTheme.background(for: scheme))
-        .tint(CardioSafeTheme.teal)
+        .tint(CardioSafeTheme.accent(for: scheme))
         .navigationTitle("Settings").navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(isPresented: $showingIntroduction) {
             OnboardingView(account: nil, onFinish: { showingIntroduction = false }, onSetUpProfile: { showingIntroduction = false }, showsProfileSetup: false)

@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @AppStorage("hasCompletedIntroduction") private var hasCompletedIntroduction = false
     @AppStorage("appearancePreference") private var appearance = "system"
+    @Environment(\.colorScheme) private var scheme
     @State private var selection: AppTab = .home
     @State private var accountModel = AccountViewModel(service: FirebaseAccountService())
     @State private var showingEmergency = false
@@ -41,7 +42,7 @@ struct ContentView: View {
         .fullScreenCover(isPresented: $showingWalkingSession) {
             WalkingSessionView(viewModel: sessionViewModel)
         }
-        .tint(CardioSafeTheme.teal)
+        .tint(CardioSafeTheme.accent(for: scheme))
         .preferredColorScheme(appearance == "dark" ? .dark : appearance == "light" ? .light : nil)
         .sheet(isPresented: $showingEmergency) { EmergencyHelpView() }
         .fullScreenCover(isPresented: Binding(get: { !hasCompletedIntroduction }, set: { _ in })) {

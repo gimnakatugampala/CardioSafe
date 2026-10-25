@@ -16,6 +16,7 @@ struct CardioSafeApp: App {
     }
     @Environment(\.scenePhase) private var scenePhase
     @State private var appLock = AppLockViewModel()
+    @State private var dispatchDemo = DispatchDemoViewModel()
     @State private var dashboardViewModel = DashboardViewModel(
         planStore: CoreDataWalkingPlanStore(), ownerID: "local-device", healthService: HealthKitDashboardService()
     )
@@ -23,6 +24,7 @@ struct CardioSafeApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(viewModel: dashboardViewModel, sessionViewModel: walkingSessionViewModel)
+                .environment(dispatchDemo)
                 .environment(appLock)
                 .accessibilityHidden(appLock.needsShield)
                 .background {

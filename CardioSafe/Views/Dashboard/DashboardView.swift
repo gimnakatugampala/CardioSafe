@@ -248,8 +248,8 @@ struct DashboardView: View {
                     .font(.title3).foregroundStyle(CardioSafeTheme.teal).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 5) {
                     Text("CardioSafe Guardian").font(.subheadline.bold())
-                    Text(viewModel.guardianDetail).font(.caption2).foregroundStyle(.secondary)
-                    Text(viewModel.guardianStatus).font(.caption2.weight(.medium)).foregroundStyle(.secondary)
+                    Text("Explore the hospital and ambulance dispatch demonstration.").font(.caption2).foregroundStyle(.secondary)
+                    Text("Demo only · No real dispatch").font(.caption2.weight(.medium)).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)

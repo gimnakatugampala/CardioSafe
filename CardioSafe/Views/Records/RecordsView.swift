@@ -29,12 +29,13 @@ struct RecordsView: View {
             else { WalkingHistoryView(viewModel: sessionModel, title: "Records") }
         }
         .background(CardioSafeTheme.background(for: scheme))
+        .tint(CardioSafeTheme.accent(for: scheme))
         .navigationTitle("Records")
         .toolbar {
             if showingDocuments {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Button(action: startScan) { Label("Scan document", systemImage: "doc.viewfinder") }
+                        if scanningAvailable { Button(action: startScan) { Label("Scan document", systemImage: "doc.viewfinder") } }
                         Button { importing = true } label: { Label("Import PDF", systemImage: "square.and.arrow.down") }
                     } label: { Label("Add document", systemImage: "plus") }
                     .disabled(readingImport)
@@ -108,12 +109,15 @@ struct RecordsView: View {
                     Label("YOUR DOCUMENTS", systemImage: "doc.text.viewfinder")
                         .font(.caption.weight(.bold)).tracking(1.2)
                     Text("Keep your care records close.").font(.title2.bold())
-                    Text("Scan or import prescriptions, reports or other paperwork as PDFs. Documents stay on this device and are not uploaded to Firebase or sent to hospitals.")
+                    Text("Add reports and prescriptions. Saved on this device only.")
                         .font(.subheadline).foregroundStyle(.secondary)
-                    Button(action: startScan) { Label("Scan document", systemImage: "doc.viewfinder") }
-                        .buttonStyle(.borderedProminent)
-                    Button { importing = true } label: { Label("Import PDF from Files", systemImage: "square.and.arrow.down") }
-                        .buttonStyle(.bordered).disabled(readingImport)
+                    if scanningAvailable {
+                        Button(action: startScan) { Label("Scan document", systemImage: "doc.viewfinder") }.buttonStyle(.borderedProminent)
+                        Button { importing = true } label: { Label("Import PDF", systemImage: "square.and.arrow.down") }.buttonStyle(.bordered).disabled(readingImport)
+                    } else {
+                        Button { importing = true } label: { Label("Import PDF", systemImage: "square.and.arrow.down") }.buttonStyle(.borderedProminent).disabled(readingImport)
+                        Text("Camera scanning is available on supported iPhones and iPads.").font(.caption).foregroundStyle(.secondary)
+                    }
                     Text("PDF files up to 25 MB. Review before saving; the original file stays unchanged.")
                         .font(.caption).foregroundStyle(.secondary)
                     if readingImport { ProgressView("Opening PDF…") }
@@ -126,7 +130,7 @@ struct RecordsView: View {
                 }
             }
             if model.isLoaded && model.documents.isEmpty {
-                ContentUnavailableView("No documents yet", systemImage: "doc.text", description: Text("Scan or import a PDF, review its pages, then save it with a name."))
+                Text("No saved PDFs yet. Add one above.").font(.subheadline).foregroundStyle(.secondary)
             }
             Section("Saved PDFs") {
                 ForEach(model.documents) { document in
@@ -156,6 +160,13 @@ struct RecordsView: View {
     }
     private func beginRename(_ document: ScannedDocument) {
         model.clearError(); documentName = document.title; renaming = document
+    }
+    private var scanningAvailable: Bool {
+        #if targetEnvironment(simulator)
+        false
+        #else
+        VNDocumentCameraViewController.isSupported
+        #endif
     }
     private func startScan() {
         #if targetEnvironment(simulator)
@@ -195,6 +206,7 @@ private struct ScanReviewView: View {
     }
     @State private var saving = false
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var scheme
     var body: some View {
         NavigationStack {
             VStack(spacing: 12) {
@@ -219,6 +231,6 @@ private struct ScanReviewView: View {
                     }.disabled(saving || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }.interactiveDismissDisabled(saving)
-        }
+        }.tint(CardioSafeTheme.accent(for: scheme))
     }
 }

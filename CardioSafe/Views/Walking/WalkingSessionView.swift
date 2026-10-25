@@ -42,7 +42,7 @@ struct WalkingSessionView: View {
             }
             .confirmationDialog("Finish this walk?", isPresented: $showingFinishConfirmation, titleVisibility: .visible) {
                 Button("Finish walk") { viewModel.finish() }
-                Button("Keep session open", role: .cancel) {}
+                Button("Continue walking", role: .cancel) {}
             } message: {
                 Text("This ends the timer and saves your walking and rest totals.")
             }
@@ -66,7 +66,7 @@ struct WalkingSessionView: View {
                     if viewModel.hasSummary, let session = viewModel.session {
                         summaryDetails(session)
                     }
-                    WalkingModeNote().padding(.horizontal, 2)
+                    DisclosureGroup("About this record") { WalkingModeNote().padding(.top, 10) }.font(.subheadline)
                     if viewModel.hasSummary {
                         if let id = viewModel.session?.id, viewModel.savedSessionIDs.contains(id) {
                             Label("Saved on this device", systemImage: "checkmark.circle")
@@ -284,7 +284,7 @@ struct WalkingSessionView: View {
                     .font(.caption2).foregroundStyle(.secondary)
             } else {
                 Button { dismiss() } label: {
-                    Text("Back to Walk").font(.headline).frame(maxWidth: .infinity).padding(17)
+                    Text("Done").font(.headline).frame(maxWidth: .infinity).padding(17)
                         .foregroundStyle(.white).background(CardioSafeTheme.navy, in: RoundedRectangle(cornerRadius: 14))
                 }
                 .buttonStyle(.plain)
@@ -323,6 +323,7 @@ struct WalkingSessionView: View {
 
     private func summaryDetails(_ session: WalkingSession) -> some View {
         VStack(alignment: .leading, spacing: 20) {
+            if session.plan != nil {
             VStack(alignment: .leading, spacing: 14) {
                 Label("Plan used for this walk", systemImage: "list.clipboard")
                     .font(.headline)
@@ -333,6 +334,8 @@ struct WalkingSessionView: View {
                 }
             }
             .padding(18).background(surface, in: RoundedRectangle(cornerRadius: 18))
+            }
+            DisclosureGroup("Rest breaks (\(session.restPeriods.count))") {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     Text("Rest periods").font(.headline)
@@ -357,6 +360,7 @@ struct WalkingSessionView: View {
                 }
             }
             .padding(18).background(surface, in: RoundedRectangle(cornerRadius: 18))
+            }
             WalkingSavedHealthView(snapshot: session.healthSnapshot)
             WalkingRecordedRouteView(session: session)
         }

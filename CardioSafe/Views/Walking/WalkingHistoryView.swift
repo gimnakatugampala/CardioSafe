@@ -11,7 +11,7 @@ struct WalkingHistoryView: View {
             Section {
                 VStack(alignment: .leading, spacing: 16) {
                     Label("YOUR WALKING RECORD", systemImage: "figure.walk")
-                        .font(.caption.weight(.bold)).tracking(1.2).foregroundStyle(CardioSafeTheme.teal)
+                        .font(.caption.weight(.bold)).tracking(1.2).foregroundStyle(CardioSafeTheme.accent(for: scheme))
                     Text("Every walk counts.").font(.title2.bold())
                     HStack(alignment: .top, spacing: 16) {
                         metric("Walks", value: "\(viewModel.completedSessions.count)")
@@ -61,7 +61,7 @@ struct WalkingHistoryView: View {
                         }
                     }
                     .padding(.vertical, 8)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(CardioSafeTheme.text(for: scheme))
                 }
             }
             }

@@ -23,12 +23,13 @@ struct AccountView: View {
             if let account = model.account {
                 Section {
                     NavigationLink { PatientProfileView(accountID: account.id).id(account.id) } label: {
-                        Label("Patient profile", systemImage: "person.text.rectangle")
+                        Label("My details", systemImage: "person.text.rectangle")
                     }
                     Text("Personal details and emergency contact · Stored on this device")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                Section("Your account") {
+                Section {
+                    DisclosureGroup("Account & verification") {
                     LabeledContent("Email", value: account.email)
                     LabeledContent("Role", value: account.role == .staff ? "Hospital staff" : "Patient")
                     LabeledContent("Email verified", value: account.isEmailVerified ? "Yes" : "Not yet")
@@ -38,6 +39,7 @@ struct AccountView: View {
                         }
                     }
                     Button("Refresh account") { Task { await model.restore() } }
+                    }
                 }
                 if account.canManageQueues {
                     Section("Hospital staff") {
@@ -60,7 +62,7 @@ struct AccountView: View {
                             Spacer()
                             Image(systemName: "arrow.right")
                         }.padding(.vertical, 8)
-                    }.tint(CardioSafeTheme.teal)
+                    }.tint(CardioSafeTheme.accent(for: scheme))
                         .disabled(!model.isConfigured)
                     if !model.isConfigured {
                         Text("Account services aren’t connected on this installation yet.").font(.caption).foregroundStyle(.secondary)
@@ -72,19 +74,12 @@ struct AccountView: View {
                     Label("Settings", systemImage: "gearshape")
                 }
             }
-            Section("Walking") {
-                NavigationLink("Walking plan and history") {
-                    WalkingAccountLinks(sessionModel: sessionModel)
-                }
-                Text("Walking and health records currently stay on this device; cloud account sync is not enabled.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
             if let message = model.message { Section { Text(message).font(.subheadline) } }
             if let error = model.errorMessage { Section { Text(error).foregroundStyle(.red) } }
         }
         .scrollContentBackground(.hidden)
         .background(CardioSafeTheme.background(for: scheme))
-        .tint(CardioSafeTheme.teal)
+        .tint(CardioSafeTheme.accent(for: scheme))
         .disabled(model.isBusy)
         .overlay { if model.isBusy { ProgressView().padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12)) } }
         .overlay(alignment: .top) {
@@ -114,17 +109,6 @@ struct AccountView: View {
             model.dismissNotice()
         }
         .sheet(isPresented: $showingSignIn) { AccountSignInView(model: model) }
-    }
-}
-
-private struct WalkingAccountLinks: View {
-    let sessionModel: WalkingSessionViewModel
-    var body: some View {
-        List {
-            NavigationLink("Walking history") { WalkingHistoryView(viewModel: sessionModel) }
-            Text("Your walking plan is available from Walk after minimising a session.").font(.caption)
-        }
-        .navigationTitle("Walking").navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -241,7 +225,7 @@ struct AccountSignInView: View {
             .interactiveDismissDisabled(model.isBusy)
             .onChange(of: registering) { _, _ in clearPasswords(); submitted = false; focusedField = nil }
             .onDisappear { clearPasswords() }
-        }.tint(CardioSafeTheme.teal)
+        }.tint(CardioSafeTheme.accent(for: scheme))
     }
 
     private func accountTab(_ title: String, icon: String, registration: Bool) -> some View {

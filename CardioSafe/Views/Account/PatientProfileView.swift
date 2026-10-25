@@ -19,7 +19,10 @@ struct PatientProfileView: View {
             if model.isLoaded {
                 if editing {
                     Section("Personal details") {
-                        TextField("Full name", text: $model.draft.fullName).textContentType(.name)
+                        LabeledContent("Full name") {
+                            TextField("Your name", text: $model.draft.fullName).textContentType(.name)
+                                .multilineTextAlignment(.trailing).accessibilityLabel("Full name")
+                        }
                         Toggle("Include date of birth", isOn: Binding(
                             get: { model.draft.dateOfBirth != nil },
                             set: { model.draft.dateOfBirth = $0 ? (model.draft.dateOfBirth ?? .now) : nil }))
@@ -57,7 +60,7 @@ struct PatientProfileView: View {
             }
         }
         .scrollContentBackground(.hidden).background(CardioSafeTheme.background(for: scheme))
-        .navigationTitle("Patient profile").navigationBarTitleDisplayMode(.inline)
+        .navigationTitle("My details").navigationBarTitleDisplayMode(.inline)
         .tint(scheme == .dark ? Color.cyan : CardioSafeTheme.teal)
         .toolbar {
             if model.isLoaded {
@@ -75,7 +78,10 @@ struct PatientProfileView: View {
                 }
             }
         }
-        .task { model.load() }
+        .task {
+            model.load()
+            if model.isLoaded && model.saved.fullName.isEmpty { model.beginEditing(); editing = true }
+        }
     }
     private func value(_ text: String) -> String { text.isEmpty ? "Not provided" : text }
 }
