@@ -6,10 +6,14 @@
 //
 
 import SwiftUI
+import UserNotifications
 
 @main
 struct CardioSafeApp: App {
-    init() { FirebaseSetup.configure() }
+    init() {
+        FirebaseSetup.configure()
+        UNUserNotificationCenter.current().delegate = WalkingNotificationDelegate.shared
+    }
     @Environment(\.scenePhase) private var scenePhase
     @State private var appLock = AppLockViewModel()
     @State private var dashboardViewModel = DashboardViewModel(

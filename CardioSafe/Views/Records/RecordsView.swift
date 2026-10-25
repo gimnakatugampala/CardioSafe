@@ -1,11 +1,15 @@
 import SwiftUI
 import VisionKit
 import AVFoundation
+import UniformTypeIdentifiers
 
 struct RecordsView: View {
     let sessionModel: WalkingSessionViewModel
     @State private var model = DocumentsViewModel()
     @State private var showingDocuments = false
+    @State private var importing = false
+    @State private var readingImport = false
+    @State private var importError: String?
     @State private var scanning = false
     @State private var scannedData: Data?
     @State private var pendingScan: PendingScan?
@@ -29,11 +33,40 @@ struct RecordsView: View {
         .toolbar {
             if showingDocuments {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: startScan) { Label("Scan document", systemImage: "doc.viewfinder") }
+                    Menu {
+                        Button(action: startScan) { Label("Scan document", systemImage: "doc.viewfinder") }
+                        Button { importing = true } label: { Label("Import PDF", systemImage: "square.and.arrow.down") }
+                    } label: { Label("Add document", systemImage: "plus") }
+                    .disabled(readingImport)
                 }
             }
         }
         .task { model.load() }
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.pdf], allowsMultipleSelection: false) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                readingImport = true
+                model.clearError()
+                Task { @MainActor in
+                    await Task.yield()
+                    defer { readingImport = false }
+                    do {
+                        let imported = try DocumentImportService.read(url)
+                        pendingScan = PendingScan(data: imported.data, title: imported.title, isImport: true)
+                    } catch {
+                        importError = (error as? DocumentImportError)?.errorDescription ?? "The PDF couldn’t be opened. Make sure it’s available in Files, then try again."
+                    }
+                }
+            case .failure(let error):
+                if (error as NSError).code != CocoaError.userCancelled.rawValue {
+                    importError = "The PDF couldn’t be selected. Please try again."
+                }
+            }
+        }
+        .alert("PDF import", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
+            Button("OK", role: .cancel) { importError = nil }
+        } message: { Text(importError ?? "") }
         .fullScreenCover(isPresented: $scanning, onDismiss: {
             if let data = scannedData { pendingScan = PendingScan(data: data); scannedData = nil }
         }) {
@@ -42,7 +75,7 @@ struct RecordsView: View {
                                 onFailure: { scanning = false; model.reportScannerError() })
                 .ignoresSafeArea()
         }
-        .sheet(item: $pendingScan) { scan in ScanReviewView(data: scan.data, model: model) }
+        .sheet(item: $pendingScan) { scan in ScanReviewView(data: scan.data, model: model, initialTitle: scan.title, isImport: scan.isImport) }
         .alert("Document scanner", isPresented: Binding(get: { scannerMessage != nil }, set: { if !$0 { scannerMessage = nil } })) {
             Button("OK", role: .cancel) { scannerMessage = nil }
         } message: { Text(scannerMessage ?? "") }
@@ -75,10 +108,15 @@ struct RecordsView: View {
                     Label("YOUR DOCUMENTS", systemImage: "doc.text.viewfinder")
                         .font(.caption.weight(.bold)).tracking(1.2)
                     Text("Keep your care records close.").font(.title2.bold())
-                    Text("Scan prescriptions, reports or other paperwork into PDFs. Documents stay on this device and are not uploaded to Firebase or sent to hospitals.")
+                    Text("Scan or import prescriptions, reports or other paperwork as PDFs. Documents stay on this device and are not uploaded to Firebase or sent to hospitals.")
                         .font(.subheadline).foregroundStyle(.secondary)
                     Button(action: startScan) { Label("Scan document", systemImage: "doc.viewfinder") }
                         .buttonStyle(.borderedProminent)
+                    Button { importing = true } label: { Label("Import PDF from Files", systemImage: "square.and.arrow.down") }
+                        .buttonStyle(.bordered).disabled(readingImport)
+                    Text("PDF files up to 25 MB. Review before saving; the original file stays unchanged.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    if readingImport { ProgressView("Opening PDF…") }
                 }.padding(.vertical, 8)
             }
             if let error = model.errorMessage {
@@ -88,7 +126,7 @@ struct RecordsView: View {
                 }
             }
             if model.isLoaded && model.documents.isEmpty {
-                ContentUnavailableView("No scanned documents yet", systemImage: "doc.text", description: Text("Scan a document to review its pages and save a named PDF."))
+                ContentUnavailableView("No documents yet", systemImage: "doc.text", description: Text("Scan or import a PDF, review its pages, then save it with a name."))
             }
             Section("Saved PDFs") {
                 ForEach(model.documents) { document in
@@ -140,12 +178,21 @@ struct RecordsView: View {
 private struct PendingScan: Identifiable {
     let id = UUID()
     let data: Data
+    var title = "Scan \(Date.now.formatted(date: .abbreviated, time: .omitted))"
+    var isImport = false
 }
 
 private struct ScanReviewView: View {
     let data: Data
     let model: DocumentsViewModel
-    @State private var title = "Scan \(Date.now.formatted(date: .abbreviated, time: .omitted))"
+    let isImport: Bool
+    @State private var title: String
+    init(data: Data, model: DocumentsViewModel, initialTitle: String, isImport: Bool) {
+        self.data = data
+        self.model = model
+        self.isImport = isImport
+        _title = State(initialValue: initialTitle)
+    }
     @State private var saving = false
     @Environment(\.dismiss) private var dismiss
     var body: some View {
@@ -158,7 +205,7 @@ private struct ScanReviewView: View {
                 if let error = model.errorMessage { Text(error).font(.subheadline).foregroundStyle(.red).padding(.horizontal) }
                 if saving { ProgressView("Saving PDF…") }
             }
-            .navigationTitle("Review scan").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(isImport ? "Review PDF" : "Review scan").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { model.clearError(); dismiss() }.disabled(saving) }
                 ToolbarItem(placement: .confirmationAction) {

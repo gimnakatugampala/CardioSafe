@@ -44,6 +44,11 @@ struct AppSettingsView: View {
             } header: { Text("Permissions") } footer: {
                 Text("Manage location and motion access in iOS Settings. Manage Health access in the Health app under your profile → Apps → CardioSafe. Available options depend on permissions already requested.")
             }
+            Section {
+                NavigationLink { WalkingReminderSettingsView() } label: {
+                    Label("Walking reminders", systemImage: "bell.badge")
+                }
+            }
             Section("Your data") {
                 Label("Walking records stay on this device", systemImage: "iphone")
                 Text("Saved sessions include walking time, rest breaks, recorded routes and available health readings. Signing in does not upload or sync these records.")

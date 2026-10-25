@@ -1,0 +1,62 @@
+import Foundation
+import UserNotifications
+
+@MainActor
+protocol WalkingReminderServicing {
+    func authorization() async -> ReminderAuthorization
+    func requestPermission() async throws -> Bool
+    func hasDailyReminder() async -> Bool
+    func scheduleDaily(hour: Int, minute: Int) async throws
+    func scheduleTest() async throws
+    func cancelDaily()
+}
+
+enum ReminderAuthorization { case notDetermined, allowed, denied }
+
+@MainActor
+final class WalkingReminderService: WalkingReminderServicing {
+    private let center = UNUserNotificationCenter.current()
+    private let dailyID = "cardiosafe.walking.daily"
+    func authorization() async -> ReminderAuthorization {
+        switch await center.notificationSettings().authorizationStatus {
+        case .notDetermined: .notDetermined
+        case .authorized, .provisional, .ephemeral: .allowed
+        default: .denied
+        }
+    }
+    func requestPermission() async throws -> Bool {
+        try await center.requestAuthorization(options: [.alert, .sound])
+    }
+    func hasDailyReminder() async -> Bool {
+        await center.pendingNotificationRequests().contains { $0.identifier == dailyID }
+    }
+    func scheduleDaily(hour: Int, minute: Int) async throws {
+        let content = UNMutableNotificationContent()
+        content.title = "Your walking reminder"
+        content.body = "Open CardioSafe to review your walking plan when you’re ready."
+        content.sound = .default
+        let trigger = UNCalendarNotificationTrigger(dateMatching: DateComponents(hour: hour, minute: minute), repeats: true)
+        try await center.add(UNNotificationRequest(identifier: dailyID, content: content, trigger: trigger))
+    }
+    func scheduleTest() async throws {
+        let content = UNMutableNotificationContent()
+        content.title = "CardioSafe test reminder"
+        content.body = "Notifications are working. This is a demonstration reminder."
+        content.sound = .default
+        try await center.add(UNNotificationRequest(identifier: "cardiosafe.walking.test", content: content,
+                                                  trigger: UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)))
+    }
+    func cancelDaily() {
+        center.removePendingNotificationRequests(withIdentifiers: [dailyID])
+        center.removeDeliveredNotifications(withIdentifiers: [dailyID])
+    }
+}
+
+@MainActor
+final class WalkingNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = WalkingNotificationDelegate()
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                            willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        [.banner, .list, .sound]
+    }
+}
