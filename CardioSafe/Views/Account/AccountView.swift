@@ -21,6 +21,13 @@ struct AccountView: View {
                 }.padding(.vertical, 10)
             }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
             if let account = model.account {
+                Section {
+                    NavigationLink { PatientProfileView(accountID: account.id).id(account.id) } label: {
+                        Label("Patient profile", systemImage: "person.text.rectangle")
+                    }
+                    Text("Personal details and emergency contact · Stored on this device")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Section("Your account") {
                     LabeledContent("Email", value: account.email)
                     LabeledContent("Role", value: account.role == .staff ? "Hospital staff" : "Patient")
@@ -58,6 +65,11 @@ struct AccountView: View {
                     if !model.isConfigured {
                         Text("Account services aren’t connected on this installation yet.").font(.caption).foregroundStyle(.secondary)
                     }
+                }
+            }
+            Section {
+                NavigationLink { AppSettingsView() } label: {
+                    Label("Settings", systemImage: "gearshape")
                 }
             }
             Section("Walking") {

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
+    @AppStorage("appearancePreference") private var appearance = "system"
     @State private var selection: AppTab = .home
     @State private var accountModel = AccountViewModel(service: FirebaseAccountService())
     @State private var showingEmergency = false
@@ -40,6 +41,7 @@ struct ContentView: View {
             WalkingSessionView(viewModel: sessionViewModel)
         }
         .tint(CardioSafeTheme.teal)
+        .preferredColorScheme(appearance == "dark" ? .dark : appearance == "light" ? .light : nil)
         .sheet(isPresented: $showingEmergency) { EmergencyHelpView() }
         .task {
             await accountModel.restore()
