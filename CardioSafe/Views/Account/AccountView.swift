@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct AccountView: View {
     let model: AccountViewModel
@@ -25,7 +26,9 @@ struct AccountView: View {
                     LabeledContent("Role", value: account.role == .staff ? "Hospital staff" : "Patient")
                     LabeledContent("Email verified", value: account.isEmailVerified ? "Yes" : "Not yet")
                     if !account.isEmailVerified {
-                        Button("Send verification email") { Task { await model.sendVerification() } }
+                        Button { Task { await model.sendVerification() } } label: {
+                            Label(model.isBusy ? "Sending…" : "Send verification email", systemImage: "envelope.badge")
+                        }
                     }
                     Button("Refresh account") { Task { await model.restore() } }
                 }
@@ -72,6 +75,32 @@ struct AccountView: View {
         .tint(CardioSafeTheme.teal)
         .disabled(model.isBusy)
         .overlay { if model.isBusy { ProgressView().padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12)) } }
+        .overlay(alignment: .top) {
+            if let notice = model.notice {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: notice.isError ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                        .foregroundStyle(notice.isError ? CardioSafeTheme.alert : CardioSafeTheme.teal)
+                    Text(notice.text).font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, alignment: .leading)
+                    Button { model.dismissNotice() } label: {
+                        Image(systemName: "xmark").font(.caption.bold()).frame(width: 28, height: 28)
+                    }.accessibilityLabel("Dismiss notification")
+                }
+                .padding(16)
+                .background(CardioSafeTheme.surface(for: scheme), in: RoundedRectangle(cornerRadius: 18))
+                .overlay { RoundedRectangle(cornerRadius: 18).stroke(CardioSafeTheme.teal.opacity(0.18), lineWidth: 1) }
+                .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
+                .padding(.horizontal, 16).padding(.top, 8)
+                .accessibilityElement(children: .contain)
+            }
+        }
+        .onChange(of: model.notice?.id) { _, _ in
+            if let notice = model.notice { UIAccessibility.post(notification: .announcement, argument: notice.text) }
+        }
+        .task(id: model.notice?.id) {
+            guard model.notice != nil else { return }
+            do { try await Task.sleep(for: .seconds(8)) } catch { return }
+            model.dismissNotice()
+        }
         .sheet(isPresented: $showingSignIn) { AccountSignInView(model: model) }
     }
 }

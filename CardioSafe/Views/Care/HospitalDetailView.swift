@@ -8,6 +8,7 @@ struct HospitalDetailView: View {
     @State private var confirmingCall = false
     @Environment(\.openURL) private var openURL
     @State private var contactError: String?
+    @Environment(\.colorScheme) private var scheme
 
     private var phoneURL: URL? {
         guard let phone = hospital.item.phoneNumber else { return nil }
@@ -20,9 +21,14 @@ struct HospitalDetailView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text(hospital.name).font(.title2.bold())
-                    Text(hospital.address).foregroundStyle(.secondary)
-                    Label(distance, systemImage: "location").font(.subheadline)
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("CARE FINDER", systemImage: "cross.case.fill")
+                            .font(.caption.weight(.bold)).tracking(1.5).foregroundStyle(CardioSafeTheme.teal)
+                        Text(hospital.name).font(.largeTitle.bold()).tracking(-0.8)
+                        Text(hospital.address).font(.subheadline).foregroundStyle(.secondary)
+                        Label(distance, systemImage: "location.fill")
+                            .font(.caption.weight(.medium)).foregroundStyle(CardioSafeTheme.teal)
+                    }
                     Map(initialPosition: .region(MKCoordinateRegion(center: hospital.coordinate,
                                                                     latitudinalMeters: 1500, longitudinalMeters: 1500))) {
                         Marker(hospital.name, systemImage: "cross.case.fill", coordinate: hospital.coordinate)
@@ -33,6 +39,7 @@ struct HospitalDetailView: View {
                         hospital.item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
                     } label: {
                         Label("Directions in Apple Maps", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+                            .foregroundStyle(.white)
                             .frame(maxWidth: .infinity, minHeight: 44)
                     }
                     .buttonStyle(.borderedProminent)
@@ -48,17 +55,29 @@ struct HospitalDetailView: View {
                         Link(destination: url) { Label("Hospital website", systemImage: "safari") }
                     }
                     if let contactError { Text(contactError).font(.caption).foregroundStyle(.secondary) }
-                    Divider()
-                    Text("Department queues").font(.headline)
+                    HStack {
+                        Text("Department queues").font(.title3.bold())
+                        Spacer()
+                        Image(systemName: "person.3.sequence.fill").foregroundStyle(CardioSafeTheme.teal)
+                    }.padding(.top, 8)
                     HospitalQueuesView(mapPlaceID: hospital.id)
-                    Text("Ambulance availability").font(.headline)
-                    Text("Availability and dispatch are not connected. Opening this hospital does not request an ambulance.")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: "truck.box.fill").foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Ambulance availability").font(.subheadline.weight(.semibold))
+                            Text("Dispatch is not connected. Opening this hospital does not request an ambulance.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(CardioSafeTheme.surface(for: scheme), in: RoundedRectangle(cornerRadius: 18))
                     Text("Place details supplied by Apple Maps. Contact the hospital to confirm services.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 .padding(20).frame(maxWidth: 650).frame(maxWidth: .infinity)
             }
+            .background(CardioSafeTheme.background(for: scheme))
+            .foregroundStyle(CardioSafeTheme.text(for: scheme))
+            .tint(CardioSafeTheme.teal)
             .navigationTitle("Hospital details").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .confirmationDialog("Call this hospital?", isPresented: $confirmingCall, titleVisibility: .visible) {

@@ -115,6 +115,8 @@ struct ContentView: View {
             AccountView(model: accountModel, sessionModel: sessionViewModel)
         } else if tab == .care {
             CareFinderView()
+        } else if tab == .records {
+            WalkingHistoryView(viewModel: sessionViewModel, title: "Records")
         } else if tab == .walk {
             WalkingOverviewView(viewModel: dashboardViewModel, sessionViewModel: sessionViewModel)
         } else {
