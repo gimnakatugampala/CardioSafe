@@ -10,6 +10,8 @@ final class WalkingReminderViewModel {
     private(set) var authorization: ReminderAuthorization = .notDetermined
     private(set) var message: String?
     private(set) var errorMessage: String?
+    private(set) var testRequestID: UUID?
+    private var testRequestedAt: Date?
     private let defaults: UserDefaults
     private let service: any WalkingReminderServicing
     init(defaults: UserDefaults = .standard, service: (any WalkingReminderServicing)? = nil) {
@@ -55,9 +57,23 @@ final class WalkingReminderViewModel {
         defer { isBusy = false }
         guard await ensurePermission() else { return }
         do {
+            let requestedAt = Date.now
             try await service.scheduleTest()
+            testRequestedAt = requestedAt
+            testRequestID = UUID()
             message = "Test scheduled for five seconds from now. Focus or notification settings may silence the banner."
         } catch { errorMessage = "The test notification couldn’t be scheduled. Please retry." }
+    }
+    func checkTestDelivery() async {
+        guard let requestedAt = testRequestedAt else { return }
+        let requestID = testRequestID
+        let date = await service.testDeliveryDate()
+        guard requestID == testRequestID else { return }
+        if let date, date >= requestedAt {
+            message = "Test notification delivered. Check Notification Centre if you missed the banner."
+        } else {
+            message = "Test scheduled, but delivery hasn’t been confirmed. Check Notification Centre and iOS notification settings."
+        }
     }
     private func ensurePermission() async -> Bool {
         authorization = await service.authorization()

@@ -7,6 +7,7 @@ protocol WalkingReminderServicing {
     func requestPermission() async throws -> Bool
     func hasDailyReminder() async -> Bool
     func scheduleDaily(hour: Int, minute: Int) async throws
+    func testDeliveryDate() async -> Date?
     func scheduleTest() async throws
     func cancelDaily()
 }
@@ -37,6 +38,11 @@ final class WalkingReminderService: WalkingReminderServicing {
         content.sound = .default
         let trigger = UNCalendarNotificationTrigger(dateMatching: DateComponents(hour: hour, minute: minute), repeats: true)
         try await center.add(UNNotificationRequest(identifier: dailyID, content: content, trigger: trigger))
+    }
+    func testDeliveryDate() async -> Date? {
+        await center.deliveredNotifications()
+            .filter { $0.request.identifier == "cardiosafe.walking.test" }
+            .map(\.date).max()
     }
     func scheduleTest() async throws {
         let content = UNMutableNotificationContent()

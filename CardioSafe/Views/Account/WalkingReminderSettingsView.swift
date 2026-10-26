@@ -49,6 +49,11 @@ struct WalkingReminderSettingsView: View {
         .tint(scheme == .dark ? .cyan : CardioSafeTheme.teal)
         .navigationTitle("Walking reminders").navigationBarTitleDisplayMode(.inline)
         .task { await model.load() }
+        .task(id: model.testRequestID) {
+            guard model.testRequestID != nil else { return }
+            do { try await Task.sleep(for: .seconds(7)) } catch { return }
+            await model.checkTestDelivery()
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await model.load() } }
         }
