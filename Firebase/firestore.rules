@@ -12,6 +12,27 @@ service cloud.firestore {
     match /hospitals/{hospitalID} {
       allow read: if signedIn();
       allow write: if false;
+      match /sosRequests/{requestID} {
+        function owner() { return signedIn() && resource.data.patientID == request.auth.uid; }
+        allow read: if owner() || assignedStaff(hospitalID);
+        allow create: if signedIn()
+          && hospitalID == 'demo-asiri-central'
+          && request.resource.data.keys().hasOnly(['patientID', 'status', 'isSimulation', 'createdAt', 'updatedAt', 'updatedBy'])
+          && request.resource.data.patientID == request.auth.uid
+          && request.resource.data.status == 'pending'
+          && request.resource.data.isSimulation == true
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.updatedBy == request.auth.uid;
+        allow update: if signedIn()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'updatedBy'])
+          && resource.data.isSimulation == true
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.updatedBy == request.auth.uid
+          && ((owner() && resource.data.status in ['pending', 'accepted'] && request.resource.data.status == 'cancelled')
+            || (assignedStaff(hospitalID) && resource.data.status == 'pending' && request.resource.data.status == 'accepted'));
+        allow delete: if false;
+      }
       match /departments/{departmentID} {
         allow read: if signedIn();
         allow update: if assignedStaff(hospitalID)

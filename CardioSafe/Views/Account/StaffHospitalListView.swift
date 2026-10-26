@@ -4,7 +4,10 @@ struct StaffHospitalListView: View {
     let account: AppAccount
     var body: some View {
         List(account.hospitalIDs, id: \.self) { id in
-            NavigationLink(id) { StaffDepartmentView(hospitalID: id, account: account) }
+            Section(id == "demo-asiri-central" ? "Asiri Central Hospital" : id) {
+                NavigationLink { FacilityRequestsView(hospitalID: id) } label: { Label("SOS requests", systemImage: "sos.circle") }
+                NavigationLink { StaffDepartmentView(hospitalID: id, account: account) } label: { Label("Department queues", systemImage: "person.3") }
+            }
         }
         .navigationTitle("Assigned hospitals").navigationBarTitleDisplayMode(.inline)
     }
