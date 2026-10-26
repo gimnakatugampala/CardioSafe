@@ -4,7 +4,7 @@ import Observation
 @MainActor @Observable
 final class DispatchDemoViewModel {
     enum Stage: Int, CaseIterable {
-        case ready, finding, reviewing, accepted, assigned, enRoute, arrived, cancelled, failed
+        case ready, finding, reviewing, accepted, assigned, enRoute, arrived, completed, cancelled, failed
         var title: String {
             switch self {
             case .ready: "Ready"
@@ -15,6 +15,7 @@ final class DispatchDemoViewModel {
             case .assigned: "Ambulance assigned"
             case .enRoute: "Ambulance en route"
             case .arrived: "Ambulance arrived"
+            case .completed: "Completed"
             case .cancelled: "Request cancelled"
             }
         }
@@ -25,6 +26,7 @@ final class DispatchDemoViewModel {
         let date: Date
     }
     private(set) var stage: Stage = .ready
+    private(set) var assignedAt: Date?
     private(set) var destination: DispatchDestination?
     private(set) var errorMessage: String?
     @ObservationIgnored private let selector: any DispatchHospitalSelecting
@@ -44,7 +46,7 @@ final class DispatchDemoViewModel {
         progression?.cancel()
         requests.stop()
         cancellationRequested = false
-        events = []; destination = nil; errorMessage = nil
+        events = []; destination = nil; assignedAt = nil; errorMessage = nil
         record(.finding)
         progression = Task { [weak self] in
             guard let selector = self?.selector else { return }
@@ -78,6 +80,10 @@ final class DispatchDemoViewModel {
                         switch status {
                         case "pending": next = .reviewing
                         case "accepted": next = .accepted
+                        case "assigned":
+                            self.assignedAt = self.requests.assignedAt
+                            next = .assigned
+                        case "completed": next = .completed
                         case "cancelled": next = .cancelled
                         default: return
                         }

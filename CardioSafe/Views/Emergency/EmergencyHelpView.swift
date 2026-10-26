@@ -8,6 +8,16 @@ struct EmergencyHelpView: View {
     private var accent: Color { scheme == .dark ? .cyan : CardioSafeTheme.teal }
 
     var body: some View {
+        if model.stage == .assigned, let assignedAt = model.assignedAt,
+           let destination = model.destination,
+           destination.patientCoordinate != nil, destination.hospitalCoordinate != nil {
+            AmbulanceTrackingView(destination: destination, assignedAt: assignedAt, dispatch: model)
+        } else {
+            requestBody
+        }
+    }
+
+    private var requestBody: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
@@ -53,7 +63,7 @@ struct EmergencyHelpView: View {
                             .frame(maxWidth: .infinity, minHeight: 50).buttonStyle(.bordered).disabled(model.isCancelling)
                     } else {
                         Button { model.start() } label: {
-                            Text(model.stage == .ready ? "Start SOS" : "Try again")
+                            Text(model.stage == .ready ? "Start SOS" : model.stage == .completed ? "Start new SOS" : "Try again")
                                 .font(.headline).frame(maxWidth: .infinity).padding(19)
                         }.buttonStyle(.plain).foregroundStyle(.white)
                             .background(CardioSafeTheme.alert, in: RoundedRectangle(cornerRadius: 18))
@@ -86,7 +96,7 @@ struct EmergencyHelpView: View {
             .navigationTitle("Emergency support").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Close") { dismiss() } } }
             .tint(accent)
-            .onAppear { model.start() }
+            .onAppear { if model.stage == .ready || model.isActive { model.start() } }
         }
     }
     private var statusTitle: String {
@@ -99,6 +109,7 @@ struct EmergencyHelpView: View {
         case .assigned: "Ambulance assigned"
         case .enRoute: "Ambulance on the way"
         case .arrived: "Simulation complete"
+        case .completed: "Completed"
         case .cancelled: "Request cancelled"
         }
     }
@@ -108,8 +119,9 @@ struct EmergencyHelpView: View {
         case .finding: "We’re checking nearby hospitals and connected queue information."
         case .failed: model.errorMessage ?? "No request was sent. Try again."
         case .reviewing: "Waiting for hospital staff to accept your request."
-        case .accepted, .assigned, .enRoute: "Hospital staff accepted your simulation request. No ambulance has been dispatched."
+        case .accepted, .assigned, .enRoute: "Hospital staff accepted your simulation request. Waiting for ambulance assignment."
         case .arrived: "The simulated ambulance has arrived. No real service was contacted."
+        case .completed: "Hospital staff completed this request. You can close this screen or start a new SOS."
         case .cancelled: "The simulation has stopped."
         }
     }
@@ -120,7 +132,7 @@ struct EmergencyHelpView: View {
         case .failed: "exclamationmark.circle"
         case .accepted: "cross.case.fill"
         case .assigned, .enRoute: "truck.box.fill"
-        case .arrived: "checkmark.circle.fill"
+        case .arrived, .completed: "checkmark.circle.fill"
         case .cancelled: "xmark.circle"
         }
     }

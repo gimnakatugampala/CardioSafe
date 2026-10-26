@@ -79,8 +79,12 @@ final class DispatchHospitalService: DispatchHospitalSelecting {
                 candidates.append(DemoHospitalCandidate(hospitalID: id, name: place.name, distanceMetres: metres,
                                                         freshWaitingCount: counts.isEmpty ? nil : counts.reduce(0, +)))
             }
-            guard let destination = DemoHospitalSelection.choose(candidates, locationDescription: source) else {
+            guard var destination = DemoHospitalSelection.choose(candidates, locationDescription: source) else {
                 throw DispatchSelectionError.noConnectedHospital
+            }
+            destination.patientCoordinate = DispatchCoordinate(latitude: origin.latitude, longitude: origin.longitude)
+            if let match = matches.first(where: { $0.0 == destination.hospitalID }) {
+                destination.hospitalCoordinate = DispatchCoordinate(latitude: match.1.coordinate.latitude, longitude: match.1.coordinate.longitude)
             }
             return destination
         } catch let error as DispatchSelectionError { throw error }

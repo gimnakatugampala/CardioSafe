@@ -1,6 +1,8 @@
 import Foundation
 
 struct DispatchDestination: Equatable {
+    var patientCoordinate: DispatchCoordinate? = nil
+    var hospitalCoordinate: DispatchCoordinate? = nil
     let hospitalID: String
     let name: String
     let distanceMetres: Double
@@ -39,5 +41,22 @@ enum DemoHospitalSelection {
         guard (0...9999).contains(waiting), let updatedAt,
               now.timeIntervalSince(updatedAt) >= -5, now.timeIntervalSince(updatedAt) <= 900 else { return nil }
         return waiting
+    }
+}
+
+
+struct DispatchCoordinate: Equatable {
+    let latitude: Double
+    let longitude: Double
+}
+
+/// Shared assignment time keeps the visual journey consistent when the sheet reopens.
+enum AmbulanceJourney {
+    static let duration: TimeInterval = 90
+    static func progress(assignedAt: Date, now: Date) -> Double {
+        min(1, max(0, now.timeIntervalSince(assignedAt) / duration))
+    }
+    static func remainingSeconds(assignedAt: Date, now: Date) -> Int {
+        max(0, Int(ceil(duration * (1 - progress(assignedAt: assignedAt, now: now)))))
     }
 }

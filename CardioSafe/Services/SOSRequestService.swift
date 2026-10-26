@@ -6,10 +6,12 @@ struct SOSRequest: Identifiable {
     let id: String
     let status: String
     let createdAt: Date?
+    var assignedAt: Date? = nil
 }
 
 @MainActor
 protocol SOSRequestServicing {
+    var assignedAt: Date? { get }
     func create(hospitalID: String) async throws
     func observe(_ receive: @escaping (Result<String, Error>) -> Void)
     func cancel() async throws
@@ -18,6 +20,7 @@ protocol SOSRequestServicing {
 
 @MainActor
 final class SOSRequestService: SOSRequestServicing {
+    private(set) var assignedAt: Date?
     private var listener: ListenerRegistration?
     private var reference: DocumentReference?
     private var generation = UUID()
@@ -56,6 +59,7 @@ final class SOSRequestService: SOSRequestServicing {
                 guard snapshot.exists, let status = snapshot.data()?["status"] as? String else {
                     receive(.failure(DispatchSelectionError.unavailable)); return
                 }
+                self?.assignedAt = (snapshot.data()?["assignedAt"] as? Timestamp)?.dateValue()
                 receive(.success(status))
             }
         }
