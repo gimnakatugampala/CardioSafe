@@ -2,6 +2,7 @@ import SwiftUI
 import MapKit
 
 struct HospitalDetailView: View {
+    @Environment(HospitalArrivalViewModel.self) private var arrival
     let hospital: MapPlace
     let distance: String
     @Environment(\.dismiss) private var dismiss
@@ -31,6 +32,10 @@ struct HospitalDetailView: View {
                     }
                     Map(initialPosition: .region(MKCoordinateRegion(center: hospital.coordinate,
                                                                     latitudinalMeters: 1500, longitudinalMeters: 1500))) {
+                        if let saved = arrival.reminder, saved.place.id == hospital.id {
+                            MapCircle(center: hospital.coordinate, radius: HospitalArrivalReminder.radiusMetres)
+                                .foregroundStyle(.teal.opacity(0.12)).stroke(.teal, lineWidth: 2)
+                        }
                         Marker(hospital.name, systemImage: "cross.case.fill", coordinate: hospital.coordinate)
                             .tint(CardioSafeTheme.teal)
                     }
@@ -55,6 +60,7 @@ struct HospitalDetailView: View {
                         Link(destination: url) { Label("Hospital website", systemImage: "safari") }
                     }
                     if let contactError { Text(contactError).font(.caption).foregroundStyle(.secondary) }
+                    HospitalArrivalReminderCard(hospital: hospital)
                     HStack {
                         Text("Department queues").font(.title3.bold())
                         Spacer()

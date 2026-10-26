@@ -15,6 +15,7 @@ struct CardioSafeApp: App {
         UNUserNotificationCenter.current().delegate = WalkingNotificationDelegate.shared
     }
     @Environment(\.scenePhase) private var scenePhase
+    @State private var arrivalReminder = HospitalArrivalViewModel()
     @State private var appLock = AppLockViewModel()
     @State private var dispatchDemo = DispatchDemoViewModel()
     @State private var dashboardViewModel = DashboardViewModel(
@@ -25,6 +26,7 @@ struct CardioSafeApp: App {
         WindowGroup {
             ContentView(viewModel: dashboardViewModel, sessionViewModel: walkingSessionViewModel)
                 .environment(dispatchDemo)
+                .environment(arrivalReminder)
                 .environment(appLock)
                 .accessibilityHidden(appLock.needsShield)
                 .background {
@@ -34,7 +36,7 @@ struct CardioSafeApp: App {
                 }
                 .onChange(of: scenePhase, initial: true) { _, phase in
                     switch phase {
-                    case .active: appLock.becameActive()
+                    case .active: appLock.becameActive(); arrivalReminder.refresh()
                     case .inactive: appLock.becameInactive()
                     case .background: appLock.enteredBackground()
                     @unknown default: appLock.becameInactive()

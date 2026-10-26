@@ -2,11 +2,13 @@ import SwiftUI
 import VisionKit
 import AVFoundation
 import UniformTypeIdentifiers
+import PhotosUI
 
 struct RecordsView: View {
     let sessionModel: WalkingSessionViewModel
     @State private var model = DocumentsViewModel()
     @State private var showingDocuments = false
+    @State private var imageSelection: PhotosPickerItem?
     @State private var importing = false
     @State private var readingImport = false
     @State private var importError: String?
@@ -36,6 +38,9 @@ struct RecordsView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         if scanningAvailable { Button(action: startScan) { Label("Scan document", systemImage: "doc.viewfinder") } }
+                        PhotosPicker(selection: $imageSelection, matching: .images) {
+                            Label("Import image", systemImage: "photo")
+                        }
                         Button { importing = true } label: { Label("Import PDF", systemImage: "square.and.arrow.down") }
                     } label: { Label("Add document", systemImage: "plus") }
                     .disabled(readingImport)
@@ -65,7 +70,21 @@ struct RecordsView: View {
                 }
             }
         }
-        .alert("PDF import", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
+        .onChange(of: imageSelection) { _, selection in
+            guard let selection else { return }
+            readingImport = true
+            Task { @MainActor in
+                defer { readingImport = false; imageSelection = nil }
+                do {
+                    guard let data = try await selection.loadTransferable(type: Data.self) else { throw DocumentRecognitionError.invalid }
+                    let pdf = try await VisionDocumentTextService.imagePDF(from: data)
+                    pendingScan = PendingScan(data: pdf, title: "Image \(Date.now.formatted(date: .abbreviated, time: .omitted))", isImport: true)
+                } catch {
+                    importError = (error as? DocumentRecognitionError)?.errorDescription ?? "The image couldn’t be opened. Choose another image."
+                }
+            }
+        }
+        .alert("Document import", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
             Button("OK", role: .cancel) { importError = nil }
         } message: { Text(importError ?? "") }
         .fullScreenCover(isPresented: $scanning, onDismiss: {
@@ -100,7 +119,7 @@ struct RecordsView: View {
                 Button("Delete \(document.title)", role: .destructive) { model.delete(document); deleting = nil }
             }
             Button("Cancel", role: .cancel) { deleting = nil }
-        } message: { Text("This permanently removes the PDF from this device. There is no cloud copy in CardioSafe.") }
+        } message: { Text("This permanently removes the PDF and its linked reminders from this device. There is no cloud copy in CardioSafe.") }
     }
     private var documents: some View {
         List {
@@ -118,9 +137,12 @@ struct RecordsView: View {
                         Button { importing = true } label: { Label("Import PDF", systemImage: "square.and.arrow.down") }.buttonStyle(.borderedProminent).disabled(readingImport)
                         Text("Camera scanning is available on supported iPhones and iPads.").font(.caption).foregroundStyle(.secondary)
                     }
+                    PhotosPicker(selection: $imageSelection, matching: .images) {
+                        Label("Import image for text recognition", systemImage: "photo")
+                    }.buttonStyle(.bordered).disabled(readingImport)
                     Text("PDF files up to 25 MB. Review before saving; the original file stays unchanged.")
                         .font(.caption).foregroundStyle(.secondary)
-                    if readingImport { ProgressView("Opening PDF…") }
+                    if readingImport { ProgressView("Opening document…") }
                 }.padding(.vertical, 8)
             }
             if let error = model.errorMessage {
@@ -198,39 +220,73 @@ private struct ScanReviewView: View {
     let model: DocumentsViewModel
     let isImport: Bool
     @State private var title: String
-    init(data: Data, model: DocumentsViewModel, initialTitle: String, isImport: Bool) {
-        self.data = data
-        self.model = model
-        self.isImport = isImport
-        _title = State(initialValue: initialTitle)
-    }
+    @State private var review = DocumentOCRReviewViewModel()
+    @State private var showingText = false
     @State private var saving = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
+
+    init(data: Data, model: DocumentsViewModel, initialTitle: String, isImport: Bool) {
+        self.data = data; self.model = model; self.isImport = isImport
+        _title = State(initialValue: initialTitle)
+    }
     var body: some View {
         NavigationStack {
             VStack(spacing: 12) {
                 TextField("Document name", text: $title).textFieldStyle(.roundedBorder).padding(.horizontal)
-                    .accessibilityLabel("Document name")
-                Text("Review every page before saving. Stored on this device only.").font(.caption).foregroundStyle(.secondary)
-                ScannedPDFView(data: data)
-                if let error = model.errorMessage { Text(error).font(.subheadline).foregroundStyle(.red).padding(.horizontal) }
-                if saving { ProgressView("Saving PDF…") }
+                    .accessibilityLabel("Document name").disabled(saving)
+                Picker("Review content", selection: $showingText) {
+                    Text("Document").tag(false)
+                    Text("Recognised text").tag(true)
+                }.pickerStyle(.segmented).padding(.horizontal)
+                if review.isRecognizing { ProgressView("Recognising text on this device…") }
+                if showingText {
+                    Text("Check names, dates and numbers against the original. Edit any mistakes.")
+                        .font(.caption).foregroundStyle(.secondary).padding(.horizontal)
+                    TextEditor(text: $review.text).padding(.horizontal)
+                        .accessibilityLabel("Recognised text for review")
+                        .disabled(review.isRecognizing || saving)
+                    if review.text.count > DocumentOCRReviewViewModel.maximumCharacters {
+                        Text("Keep text within 50,000 characters.").font(.caption).foregroundStyle(.red)
+                    }
+                } else { ScannedPDFView(data: data) }
+                if let error = review.errorMessage {
+                    Text(error).font(.caption).foregroundStyle(.secondary).padding(.horizontal)
+                }
+                if !review.isRecognizing {
+                    Toggle(review.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                           ? "Save this PDF without recognised text"
+                           : "I checked the recognised text against the document",
+                           isOn: $review.hasReviewed)
+                        .font(.subheadline).padding(.horizontal).disabled(saving)
+                }
+                Text("Recognition and storage stay on this device. Review before saving.")
+                    .font(.caption).foregroundStyle(.secondary).padding(.horizontal)
+                if let error = model.errorMessage {
+                    Text(error).font(.subheadline).foregroundStyle(.red).padding(.horizontal)
+                }
+                if saving { ProgressView("Saving document…") }
             }
-            .navigationTitle(isImport ? "Review PDF" : "Review scan").navigationBarTitleDisplayMode(.inline)
+            .padding(.vertical, 12)
+            .navigationTitle("Review document").navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { model.clearError(); dismiss() }.disabled(saving) }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { model.clearError(); dismiss() }.disabled(saving)
+                }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save PDF") {
+                    Button("Save") {
                         saving = true
                         Task { @MainActor in
                             await Task.yield()
-                            if model.save(data: data, title: title) { dismiss() }
+                            if model.save(data: data, title: title, reviewedText: review.text) { dismiss() }
                             saving = false
                         }
-                    }.disabled(saving || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }.disabled(saving || !review.canSave || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-            }.interactiveDismissDisabled(saving)
+            }
+            .task { await review.recognize(data) }
+            .onDisappear { review.stop() }
+            .interactiveDismissDisabled(saving)
         }.tint(CardioSafeTheme.accent(for: scheme))
     }
 }

@@ -43,7 +43,7 @@ struct AccountView: View {
                 }
                 if account.canManageQueues {
                     Section("Hospital staff") {
-                        NavigationLink("Manage department queues") { StaffHospitalListView(account: account) }
+                        NavigationLink("Hospital workspace") { StaffHospitalListView(account: account) }
                     }
                 } else if account.role == .staff {
                     Section { Text("Staff access requires a verified email and a hospital assignment.").font(.subheadline) }

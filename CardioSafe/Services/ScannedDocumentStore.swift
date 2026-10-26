@@ -4,7 +4,7 @@ import PDFKit
 @MainActor
 protocol ScannedDocumentStoring {
     func load() throws -> [ScannedDocument]
-    func save(data: Data, title: String) throws -> ScannedDocument
+    func save(data: Data, title: String, reviewedText: String?) throws -> ScannedDocument
     func rename(_ document: ScannedDocument, title: String) throws
     func delete(_ document: ScannedDocument) throws
     func url(for document: ScannedDocument) -> URL
@@ -27,14 +27,25 @@ struct LocalScannedDocumentStore: ScannedDocumentStoring {
                       let pdf = PDFDocument(url: url), pdf.pageCount > 0 else { throw DocumentStoreError.unreadable }
                 let attributes = pdf.documentAttributes ?? [:]
                 return ScannedDocument(id: id, title: attributes[PDFDocumentAttribute.titleAttribute] as? String ?? "Scanned document",
-                                       createdAt: attributes[PDFDocumentAttribute.creationDateAttribute] as? Date ?? .distantPast, pageCount: pdf.pageCount)
+                                       createdAt: attributes[PDFDocumentAttribute.creationDateAttribute] as? Date ?? .distantPast, reviewedText: Self.reviewedText(in: attributes), pageCount: pdf.pageCount)
             }.sorted { $0.createdAt > $1.createdAt }
     }
-    func save(data: Data, title: String) throws -> ScannedDocument {
+    func save(data: Data, title: String, reviewedText: String? = nil) throws -> ScannedDocument {
         guard let pdf = PDFDocument(data: data), pdf.pageCount > 0 else { throw DocumentStoreError.unreadable }
         let title = try validated(title)
-        let record = ScannedDocument(id: UUID(), title: title, createdAt: .now, pageCount: pdf.pageCount)
-        pdf.documentAttributes = [PDFDocumentAttribute.titleAttribute: title, PDFDocumentAttribute.creationDateAttribute: record.createdAt]
+        let reviewed = reviewedText?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (reviewed?.count ?? 0) <= 50_000 else { throw DocumentStoreError.textLength }
+        let record = ScannedDocument(id: UUID(), title: title, createdAt: .now, reviewedText: reviewed?.isEmpty == false ? reviewed : nil, pageCount: pdf.pageCount)
+        var attributes = pdf.documentAttributes ?? [:]
+        attributes[PDFDocumentAttribute.titleAttribute] = title
+        attributes[PDFDocumentAttribute.creationDateAttribute] = record.createdAt
+        var keywords = (attributes[PDFDocumentAttribute.keywordsAttribute] as? [String] ?? []).filter { $0 != Self.reviewMarker }
+        if let reviewed = record.reviewedText {
+            attributes[PDFDocumentAttribute.subjectAttribute] = reviewed
+            keywords.append(Self.reviewMarker)
+        }
+        attributes[PDFDocumentAttribute.keywordsAttribute] = keywords
+        pdf.documentAttributes = attributes
         try write(pdf, to: file(record.id))
         return record
     }
@@ -47,6 +58,11 @@ struct LocalScannedDocumentStore: ScannedDocumentStoring {
         try write(pdf, to: file(document.id))
     }
     func delete(_ document: ScannedDocument) throws { try FileManager.default.removeItem(at: file(document.id)) }
+    private static let reviewMarker = "CardioSafeReviewedTextV1"
+    private static func reviewedText(in attributes: [AnyHashable: Any]) -> String? {
+        guard (attributes[PDFDocumentAttribute.keywordsAttribute] as? [String])?.contains(reviewMarker) == true else { return nil }
+        return attributes[PDFDocumentAttribute.subjectAttribute] as? String
+    }
     private func validated(_ title: String) throws -> String {
         let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty, title.count <= 100 else { throw DocumentStoreError.title }
@@ -64,11 +80,19 @@ struct LocalScannedDocumentStore: ScannedDocumentStoring {
 }
 
 enum DocumentStoreError: LocalizedError {
-    case unreadable, title
+    case unreadable, title, textLength
     var errorDescription: String? {
         switch self {
         case .unreadable: "A document couldn’t be read. Its original file has not been changed."
+        case .textLength: "Keep reviewed text within 50,000 characters."
         case .title: "Enter a document name using 1–100 characters."
         }
+    }
+}
+
+
+extension ScannedDocumentStoring {
+    func save(data: Data, title: String) throws -> ScannedDocument {
+        try save(data: data, title: title, reviewedText: nil)
     }
 }

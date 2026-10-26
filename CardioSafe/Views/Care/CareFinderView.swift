@@ -2,6 +2,7 @@ import SwiftUI
 import MapKit
 
 struct CareFinderView: View {
+    @Environment(HospitalArrivalViewModel.self) private var arrival
     @State private var model = CareFinderViewModel()
     @State private var locationModel = WalkingLocationViewModel()
     @State private var camera: MapCameraPosition = .region(CareFinderViewModel.previewRegion)
@@ -23,6 +24,11 @@ struct CareFinderView: View {
                 }
                 .padding(14).background(.background, in: RoundedRectangle(cornerRadius: 14))
                 Map(position: $camera, selection: $model.selectedPlaceID) {
+                    if let saved = arrival.reminder {
+                        MapCircle(center: .init(latitude: saved.place.latitude, longitude: saved.place.longitude),
+                                  radius: HospitalArrivalReminder.radiusMetres)
+                            .foregroundStyle(.teal.opacity(0.12)).stroke(.teal, lineWidth: 2)
+                    }
                     ForEach(model.hospitals) { hospital in
                         Marker(hospital.name, systemImage: "cross.case.fill", coordinate: hospital.coordinate)
                             .tint(CardioSafeTheme.teal).tag(hospital.id)
@@ -53,6 +59,16 @@ struct CareFinderView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 if wantsNearby, let error = locationModel.errorMessage {
                     Label(error, systemImage: "location.slash").font(.caption).foregroundStyle(.secondary)
+                }
+                if let saved = arrival.reminder {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Arrival reminder · " + saved.place.name, systemImage: "bell.badge")
+                            .font(.subheadline.weight(.semibold))
+                        Text(arrival.isMonitoring ? "Watching the 200 m area" : "Open hospital details to check reminder permissions")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Button("Stop reminder", role: .destructive) { arrival.cancel() }.font(.subheadline)
+                    }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.background, in: RoundedRectangle(cornerRadius: 16))
                 }
                 HStack {
                     Text("Hospitals").font(.title3.bold())

@@ -271,7 +271,7 @@
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "CardioSafe uses Face ID to unlock your profile and health records when app lock is enabled.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "CardioSafe reads steps, walking distance, heart rate and active energy to show your daily activity and walking session readings.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "In the iOS Simulator, CardioSafe saves clearly identified test samples to HealthKit to demonstrate saving and querying health data.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "CardioSafe uses your location to show where you are on the map during a walking session.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "CardioSafe uses your location for walking maps and hospital arrival reminders you choose to enable.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "CardioSafe uses motion data to show your steps and walking distance during a session.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -321,7 +321,7 @@
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "CardioSafe uses Face ID to unlock your profile and health records when app lock is enabled.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "CardioSafe reads steps, walking distance, heart rate and active energy to show your daily activity and walking session readings.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "In the iOS Simulator, CardioSafe saves clearly identified test samples to HealthKit to demonstrate saving and querying health data.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "CardioSafe uses your location to show where you are on the map during a walking session.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "CardioSafe uses your location for walking maps and hospital arrival reminders you choose to enable.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "CardioSafe uses motion data to show your steps and walking distance during a session.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;

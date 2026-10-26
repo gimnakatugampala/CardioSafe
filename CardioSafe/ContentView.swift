@@ -3,6 +3,9 @@ import SwiftUI
 struct ContentView: View {
     @AppStorage("hasCompletedIntroduction") private var hasCompletedIntroduction = false
     @AppStorage("appearancePreference") private var appearance = "system"
+    @Environment(DispatchDemoViewModel.self) private var dispatch
+    @Environment(AppLockViewModel.self) private var appLock
+    @State private var shouldShowRestoredSOS = false
     @Environment(\.colorScheme) private var scheme
     @State private var selection: AppTab = .home
     @State private var accountModel = AccountViewModel(service: FirebaseAccountService())
@@ -53,11 +56,27 @@ struct ContentView: View {
                 hasCompletedIntroduction = true
             })
         }
+        .task(id: accountModel.account?.id) {
+            showingEmergency = false
+            shouldShowRestoredSOS = false
+            let shouldResume = await dispatch.restoreForAccount(ownerID: accountModel.account?.id)
+            guard !Task.isCancelled else { return }
+            shouldShowRestoredSOS = shouldResume
+            presentRestoredSOSIfPossible()
+        }
+        .onChange(of: appLock.needsShield) { _, _ in presentRestoredSOSIfPossible() }
+        .onChange(of: hasCompletedIntroduction) { _, _ in presentRestoredSOSIfPossible() }
         .task {
             await accountModel.restore()
             await dashboardViewModel.loadWalkingPlan()
             await sessionViewModel.loadHistory()
         }
+    }
+
+    private func presentRestoredSOSIfPossible() {
+        guard shouldShowRestoredSOS, !appLock.needsShield, hasCompletedIntroduction else { return }
+        shouldShowRestoredSOS = false
+        showingEmergency = true
     }
 
     private var bottomNavigation: some View {

@@ -37,24 +37,76 @@ final class DispatchDemoViewModel {
     @ObservationIgnored private let requests: any SOSRequestServicing
     private(set) var isCancelling = false
     private var cancellationRequested = false
+    private(set) var isRestoring = false
+    @ObservationIgnored private var generation = UUID()
+    @ObservationIgnored private var boundOwnerID: String?
     init(selector: (any DispatchHospitalSelecting)? = nil, requests: (any SOSRequestServicing)? = nil) {
         self.requests = requests ?? SOSRequestService()
         self.selector = selector ?? DispatchHospitalService()
     }
+    /// Account changes discard in-memory details; the journal remains isolated per account.
+    func restoreForAccount(ownerID: String?) async -> Bool {
+        guard ownerID != boundOwnerID else { return isActive }
+        generation = UUID()
+        let expected = generation
+        boundOwnerID = ownerID
+        progression?.cancel(); selector.cancel(); requests.stop()
+        destination = nil; assignedAt = nil; errorMessage = nil; events = []
+        isCancelling = false; cancellationRequested = false; stage = .ready
+        guard ownerID != nil else { isRestoring = false; return false }
+        isRestoring = true
+        defer { if generation == expected { isRestoring = false } }
+        record(.finding)
+        do {
+            let restored = try await requests.restore()
+            guard generation == expected, !Task.isCancelled else { return false }
+            guard let restored else { stage = .ready; events = []; return false }
+            guard restored.saved.ownerID == ownerID else { throw DispatchSelectionError.unavailable }
+            restore(restored)
+            return restored.isActive
+        } catch {
+            guard generation == expected, !Task.isCancelled else { return false }
+            errorMessage = "Your previous SOS couldn’t be checked. Reconnect and retry; a new request has not been created."
+            record(.failed)
+            return true
+        }
+    }
+
     func start() {
+        guard !isRestoring else { return }
         guard !isActive else { if stage != .finding { observeRequest() }; return }
         progression?.cancel()
         requests.stop()
+        generation = UUID()
+        let expected = generation
         cancellationRequested = false
         events = []; destination = nil; assignedAt = nil; errorMessage = nil
+        isRestoring = true
         record(.finding)
         progression = Task { [weak self] in
-            guard let selector = self?.selector else { return }
+            guard let self else { return }
             do {
-                let selected = try await selector.selectHospital()
-                guard !Task.isCancelled, let self, self.stage == .finding else { return }
+                defer { if self.generation == expected { self.isRestoring = false } }
+                // Always reconcile a saved request before allowing a new submission.
+                if let restored = try await self.requests.restore() {
+                    guard !Task.isCancelled, self.generation == expected else { return }
+                    if restored.isActive {
+                        self.restore(restored)
+                        return
+                    }
+                }
+            } catch {
+                guard !Task.isCancelled, self.generation == expected else { return }
+                self.errorMessage = "Your previous SOS couldn’t be checked. Reconnect and retry; a new request has not been created."
+                self.record(.failed)
+                return
+            }
+            do {
+                let selected = try await self.selector.selectHospital()
+                guard !Task.isCancelled, self.generation == expected, self.stage == .finding else { return }
                 self.destination = selected
-                try await self.requests.create(hospitalID: selected.hospitalID)
+                try await self.requests.create(destination: selected)
+                guard self.generation == expected, !Task.isCancelled else { return }
                 if self.cancellationRequested {
                     await self.finishCancellation()
                     return
@@ -62,43 +114,53 @@ final class DispatchDemoViewModel {
                 self.record(.reviewing)
                 self.observeRequest()
             } catch {
-                guard !Task.isCancelled, let self, self.isActive else { return }
-                self.errorMessage = (error as? DispatchSelectionError)?.errorDescription ?? "Hospital information is unavailable. No request was sent."
+                guard !Task.isCancelled, self.generation == expected, self.isActive else { return }
+                self.errorMessage = (error as? DispatchSelectionError)?.errorDescription ?? "SOS submission could not be confirmed. Retry to reconnect to the saved request."
                 self.record(.failed)
-                return
             }
-
         }
     }
+
+    private func restore(_ restored: RestoredSOS) {
+        destination = restored.saved.destination
+        assignedAt = restored.assignedAt
+        apply(status: restored.status)
+        if restored.isActive { observeRequest() }
+    }
+
+    private func apply(status: String) {
+        let next: Stage
+        switch status {
+        case "pending": next = .reviewing
+        case "accepted": next = .accepted
+        case "assigned":
+            assignedAt = requests.assignedAt ?? assignedAt
+            next = .assigned
+        case "completed": next = .completed
+        case "cancelled": next = .cancelled
+        default: return
+        }
+        errorMessage = nil
+        if stage != next { record(next) }
+    }
+
     private func observeRequest() {
+        let expected = generation
         requests.observe { [weak self] result in
-                    guard let self else { return }
-                    switch result {
-                    case .success(let status):
-                        self.errorMessage = nil
-                        let next: Stage
-                        switch status {
-                        case "pending": next = .reviewing
-                        case "accepted": next = .accepted
-                        case "assigned":
-                            self.assignedAt = self.requests.assignedAt
-                            next = .assigned
-                        case "completed": next = .completed
-                        case "cancelled": next = .cancelled
-                        default: return
-                        }
-                        if self.stage != next { self.record(next) }
-                    case .failure:
-                        self.errorMessage = "Connection interrupted. The request may still be open. Close and reopen this screen to reconnect."
-                    }
-                }
+            guard let self, self.generation == expected else { return }
+            switch result {
+            case .success(let status): self.apply(status: status)
+            case .failure:
+                self.errorMessage = "Connection interrupted. The saved SOS may still be active. Close and reopen this screen to reconnect."
+            }
+        }
     }
     private func record(_ next: Stage, now: Date = .now) {
         stage = next
         events.append(Event(stage: next, date: now))
     }
     func cancel(now: Date = .now) {
-        guard isActive, !isCancelling else { return }
+        guard isActive, !isCancelling, !isRestoring else { return }
         cancellationRequested = true
         if stage == .finding && destination == nil {
             progression?.cancel()

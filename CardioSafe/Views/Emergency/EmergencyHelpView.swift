@@ -57,10 +57,10 @@ struct EmergencyHelpView: View {
                             Label("Acceptance confirmed", systemImage: "checkmark.circle.fill")
                                 .font(.subheadline.weight(.semibold)).foregroundStyle(accent)
                         } else {
-                            ProgressView(model.stage == .finding ? "Checking location, hospitals and queues…" : "Waiting for hospital response…")
+                            ProgressView(model.isRestoring ? "Restoring your SOS…" : model.stage == .finding ? "Checking location, hospitals and queues…" : "Waiting for hospital response…")
                         }
                         Button(model.isCancelling ? "Cancelling…" : "Cancel SOS", role: .destructive) { model.cancel() }
-                            .frame(maxWidth: .infinity, minHeight: 50).buttonStyle(.bordered).disabled(model.isCancelling)
+                            .frame(maxWidth: .infinity, minHeight: 50).buttonStyle(.bordered).disabled(model.isCancelling || model.isRestoring)
                     } else {
                         Button { model.start() } label: {
                             Text(model.stage == .ready ? "Start SOS" : model.stage == .completed ? "Start new SOS" : "Try again")

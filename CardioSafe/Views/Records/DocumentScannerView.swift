@@ -53,10 +53,30 @@ struct ScannedPDFView: UIViewRepresentable {
 struct SavedDocumentView: View {
     let document: ScannedDocument
     let url: URL
+    @State private var showingText = false
     var body: some View {
-        Group {
-            if let data = try? Data(contentsOf: url), PDFDocument(data: data) != nil { ScannedPDFView(data: data) }
+        VStack(spacing: 12) {
+            if document.reviewedText != nil {
+                Picker("Saved content", selection: $showingText) {
+                    Text("Document").tag(false)
+                    Text("Reviewed text").tag(true)
+                }.pickerStyle(.segmented).padding(.horizontal)
+            }
+            if showingText, let text = document.reviewedText {
+                ScrollView {
+                    Text(text).frame(maxWidth: .infinity, alignment: .leading).padding().textSelection(.enabled)
+                }
+                Text("Reviewed text saved with this document. Refer to the original for clinical details.")
+                    .font(.caption).foregroundStyle(.secondary).padding()
+            } else if let data = try? Data(contentsOf: url), PDFDocument(data: data) != nil { ScannedPDFView(data: data) }
             else { ContentUnavailableView("Document unavailable", systemImage: "doc.badge.ellipsis", description: Text("Return to Records and retry opening this document.")) }
         }.navigationTitle(document.title).navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink { DocumentRemindersView(document: document) } label: {
+                    Label("Reminders", systemImage: "bell.badge")
+                }
+            }
+        }
     }
 }

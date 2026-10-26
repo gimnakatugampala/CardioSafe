@@ -1,6 +1,6 @@
 import Foundation
 
-struct DispatchDestination: Equatable {
+struct DispatchDestination: Equatable, Codable {
     var patientCoordinate: DispatchCoordinate? = nil
     var hospitalCoordinate: DispatchCoordinate? = nil
     let hospitalID: String
@@ -45,7 +45,7 @@ enum DemoHospitalSelection {
 }
 
 
-struct DispatchCoordinate: Equatable {
+struct DispatchCoordinate: Equatable, Codable {
     let latitude: Double
     let longitude: Double
 }

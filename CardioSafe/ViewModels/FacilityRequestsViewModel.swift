@@ -26,7 +26,7 @@ final class FacilityRequestsViewModel {
                         let data = doc.data()
                         guard data["isSimulation"] as? Bool == true, let status = data["status"] as? String else { return nil }
                         return SOSRequest(id: doc.documentID, status: status, createdAt: (data["createdAt"] as? Timestamp)?.dateValue(), assignedAt: (data["assignedAt"] as? Timestamp)?.dateValue())
-                    }.sorted { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
+                    }.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
                 }
             }
     }
