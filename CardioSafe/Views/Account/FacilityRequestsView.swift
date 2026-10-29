@@ -42,40 +42,28 @@ struct FacilityRequestsView: View {
     }
 
     private func requestCard(_ request: SOSRequest) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(request.status == "pending" ? "New SOS" : request.status == "accepted" ? "Awaiting ambulance" : "Ambulance assigned", systemImage: request.status == "pending" ? "sos.circle.fill" : "cross.case.fill")
-                .font(.headline)
+        let status = SOSJourneyStatus(rawValue: request.status)
+        return VStack(alignment: .leading, spacing: 12) {
+            Label(status?.title ?? "Request", systemImage: request.status == "pending" ? "sos.circle.fill" : "cross.case.fill").font(.headline)
             Text("Request \(request.id.prefix(8))").font(.caption).foregroundStyle(.secondary)
             if let date = request.createdAt { Text(date, format: .dateTime.hour().minute()).font(.caption).foregroundStyle(.secondary) }
-            if request.status == "assigned" {
-                Label("Ambulance assigned · Simulated journey", systemImage: "checkmark.circle.fill")
-                    .font(.subheadline).foregroundStyle(.secondary)
-                if let assignedAt = request.assignedAt {
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        let remaining = AmbulanceJourney.remainingSeconds(assignedAt: assignedAt, now: context.date)
-                        Button {
-                            Task { await model.complete(request, hospitalID: hospitalID) }
-                        } label: {
-                            Text(model.savingID == request.id ? "Completing…" : remaining == 0 ? "Complete request" : "Simulation arriving in \(remaining) sec")
-                                .frame(maxWidth: .infinity, minHeight: 44)
-                        }.buttonStyle(.borderedProminent)
-                            .disabled(remaining > 0 || model.savingID != nil)
-                    }
-                }
-            } else {
-                if request.status == "accepted" {
-                    Label("Acceptance confirmed", systemImage: "checkmark.circle.fill")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                }
+            if status == .patientArrived { Text("Confirm pickup only when the patient is with the crew.").font(.subheadline).foregroundStyle(.secondary) }
+            if status == .hospitalArrived { Text("Complete after the patient has been handed over to hospital staff.").font(.subheadline).foregroundStyle(.secondary) }
+            if model.actionRequestID == request.id, let message = model.actionMessage {
+                Label(message, systemImage: model.actionFailed ? "exclamationmark.triangle.fill" : "checkmark.circle")
+                    .font(.subheadline).foregroundStyle(model.actionFailed ? Color.orange : Color.secondary)
+                    .accessibilityLabel(message)
+            }
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let journeyStart = status == .assigned ? request.assignedAt : status == .transporting ? request.pickedUpAt : nil
+                let needsJourney = status == .assigned || status == .transporting
+                let remaining = journeyStart.map { AmbulanceJourney.remainingSeconds(assignedAt: $0, now: context.date) } ?? (needsJourney ? 90 : 0)
                 Button {
-                    Task {
-                        if request.status == "accepted" { await model.assign(request, hospitalID: hospitalID) }
-                        else { await model.accept(request, hospitalID: hospitalID) }
-                    }
+                    Task { await model.advance(request, hospitalID: hospitalID) }
                 } label: {
-                    Text(model.savingID == request.id ? "Confirming…" : request.status == "accepted" ? "Assign ambulance" : "Accept request")
+                    Text(model.savingID == request.id ? "Confirming…" : remaining > 0 ? "Simulated arrival in \(remaining) sec" : status?.action ?? "Unavailable")
                         .frame(maxWidth: .infinity, minHeight: 44)
-                }.buttonStyle(.borderedProminent).disabled(model.savingID != nil)
+                }.buttonStyle(.borderedProminent).disabled(remaining > 0 || model.savingID != nil || status?.next == nil)
             }
         }.padding(.vertical, 8)
     }

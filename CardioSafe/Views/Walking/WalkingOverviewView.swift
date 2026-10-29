@@ -7,6 +7,7 @@ struct WalkingOverviewView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var showingPlanSetup = false
+    @State private var planOwnerID = "guest"
     @State private var showingWalkingMap = false
     @State private var showingSession = false
 
@@ -56,7 +57,7 @@ struct WalkingOverviewView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingPlanSetup) {
             WalkingPlanSetupView(plan: viewModel.snapshot.walkingPlan) { plan in
-                try await viewModel.saveWalkingPlan(plan)
+                try await viewModel.saveWalkingPlan(plan, for: planOwnerID)
             }
         }
         .sheet(isPresented: $showingWalkingMap) { WalkingMapView() }
@@ -72,7 +73,7 @@ struct WalkingOverviewView: View {
                     .font(.headline)
                 Spacer(minLength: 4)
                 if plan != nil && !sessionViewModel.isActive && viewModel.planLoadError == nil {
-                    Button("Edit") { showingPlanSetup = true }
+                    Button("Edit") { planOwnerID = viewModel.ownerID; showingPlanSetup = true }
                         .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
                 }
             }
@@ -93,7 +94,7 @@ struct WalkingOverviewView: View {
                 }
                 Text(sessionViewModel.isActive
                      ? "This session uses the plan you started with."
-                     : "Targets entered from your clinician’s plan.")
+                     : "Targets entered from your clinician’s plan. Saved separately for this account on this phone.")
                     .font(.caption).foregroundStyle(.secondary)
                 Divider()
 
@@ -103,7 +104,7 @@ struct WalkingOverviewView: View {
                     Text("You can walk without a target, or add the duration and rest interval from your clinician’s plan.")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
-                Button("Add walking plan") { showingPlanSetup = true }.font(.subheadline.weight(.semibold)).frame(minHeight: 44)
+                Button("Add walking plan") { planOwnerID = viewModel.ownerID; showingPlanSetup = true }.font(.subheadline.weight(.semibold)).frame(minHeight: 44)
             }
         }
         .padding(20).frame(maxWidth: .infinity, alignment: .leading)

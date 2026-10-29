@@ -28,6 +28,7 @@ struct WalkingSession: Identifiable, Equatable, Codable {
     var intervals: [WalkingSessionInterval]
     var routeSegments: [WalkingRouteSegment]? = nil
     var healthSnapshot: WalkingHealthSnapshot? = nil
+    var untrackedGaps: [WalkingRecoveryGap]? = nil
 
     var walkingSeconds: TimeInterval {
         intervals.filter { $0.kind == .walking }.reduce(0) { $0 + $1.durationSeconds }
@@ -96,4 +97,9 @@ struct WalkingSessionTiming {
     var displayedElapsedSeconds: TimeInterval { floor(walkingSeconds) + floor(restingSeconds) }
     var targetReached: Bool { targetSeconds > 0 && walkingSeconds >= targetSeconds }
     var progress: Double { targetSeconds > 0 ? min(1, max(0, walkingSeconds / targetSeconds)) : 0 }
+}
+
+struct WalkingRecoveryGap: Equatable, Codable {
+    let from: Date
+    let to: Date
 }

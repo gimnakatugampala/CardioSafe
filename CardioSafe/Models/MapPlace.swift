@@ -33,7 +33,10 @@ struct WalkingMapRoute {
     let polyline: MKPolyline
     let distanceMetres: Double
     let expectedSeconds: TimeInterval
+    var provider: WalkingRouteProvider = .appleMaps
 }
+
+enum WalkingRouteProvider { case appleMaps, community }
 
 enum MapSearchArea {
     static func contains(_ coordinate: CLLocationCoordinate2D, in region: MKCoordinateRegion) -> Bool {

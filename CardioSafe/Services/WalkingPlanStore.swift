@@ -13,6 +13,7 @@ enum WalkingPlanStorageError: Error {
     case unreadablePlan
     case planNotLoaded
     case saveInProgress
+    case accountChanged
 }
 
 @MainActor
@@ -81,6 +82,11 @@ final class CoreDataWalkingPlanStore: WalkingPlanStoring {
             context.rollback()
             throw error
         }
+    }
+
+    func deletePlan(for ownerID: String) async throws {
+        try validateOwner(ownerID); try await prepareStore()
+        if let record = try fetchRecord(for: ownerID) { container.viewContext.delete(record); try container.viewContext.save() }
     }
 
     private func prepareStore() async throws {

@@ -5,6 +5,8 @@ import UserNotifications
 @MainActor final class CoreLocationArrivalService: NSObject, ArrivalMonitoring, CLLocationManagerDelegate {
     var onEvent: ((ArrivalEvent) -> Void)?
     private let manager = CLLocationManager()
+    private let prefix: String
+
     var access: ArrivalAccess {
         let permission: ArrivalLocationPermission
         switch manager.authorizationStatus {
@@ -16,14 +18,14 @@ import UserNotifications
         return ArrivalAccess(permission: permission, precise: manager.accuracyAuthorization == .fullAccuracy,
                              supported: CLLocationManager.isMonitoringAvailable(for: CLCircularRegion.self))
     }
-    override init() { super.init(); manager.delegate = self }
+    init(prefix: String = "cardiosafe.arrival.") { self.prefix = prefix; super.init(); manager.delegate = self }
     func requestWhenInUse() { manager.requestWhenInUseAuthorization() }
     func requestAlways() { manager.requestAlwaysAuthorization() }
     func start(_ reminder: HospitalArrivalReminder) {
         guard access.canMonitor, manager.maximumRegionMonitoringDistance >= HospitalArrivalReminder.radiusMetres else {
             onEvent?(.failed(reminder.regionID)); return
         }
-        let owned = manager.monitoredRegions.filter { $0.identifier.hasPrefix("cardiosafe.arrival.") }
+        let owned = manager.monitoredRegions.filter { $0.identifier.hasPrefix(prefix) }
         for region in owned where region.identifier != reminder.regionID { manager.stopMonitoring(for: region) }
         if let existing = owned.first(where: { $0.identifier == reminder.regionID }) {
             onEvent?(.started(existing.identifier))
@@ -73,6 +75,14 @@ import UserNotifications
         content.sound = .default
         try await center.add(UNNotificationRequest(identifier: id, content: content,
                                                   trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)))
+    }
+    func scheduleExit(id: String) async throws {
+        let content = UNMutableNotificationContent()
+        content.title = "Hospital departure reminder"
+        content.body = "You may have left your saved hospital area. Review your visit notes and any follow-up reminders in CardioSafe."
+        content.sound = .default
+        try await center.add(UNNotificationRequest(identifier: id, content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)))
     }
     func cancel(id: String) {
         center.removePendingNotificationRequests(withIdentifiers: [id])

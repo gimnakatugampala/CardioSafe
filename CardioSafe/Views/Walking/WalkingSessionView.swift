@@ -2,6 +2,7 @@ import SwiftUI
 
 struct WalkingSessionView: View {
     let viewModel: WalkingSessionViewModel
+    var allowsAutomaticSOS = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -9,6 +10,7 @@ struct WalkingSessionView: View {
     @ScaledMetric(relativeTo: .largeTitle) private var timerSize = 56
     @State private var showingFinishConfirmation = false
     @State private var showingEmergency = false
+    @State private var showingHealthDetails = false
 
     private var resting: Bool { viewModel.phase == .resting }
     private var surface: Color { CardioSafeTheme.surface(for: colorScheme) }
@@ -47,9 +49,36 @@ struct WalkingSessionView: View {
                 Text("This ends the timer and saves your walking and rest totals.")
             }
             .sheet(isPresented: $showingEmergency) { EmergencyHelpView() }
+            .sheet(isPresented: $showingHealthDetails, onDismiss: {
+                if viewModel.automaticSOS.state == .submitted { showingEmergency = true }
+            }) {
+                NavigationStack {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                        automaticSOSSettings
+                        WalkingHealthPanel(model: viewModel.healthModel,
+                            gpsDistance: (viewModel.session?.routeDistanceMetres ?? 0) > 0 ? viewModel.session?.routeDistanceMetres : nil)
+                        }.padding(20)
+                    }
+                    .safeAreaInset(edge: .top) { AutomaticSOSBanner(model: viewModel.automaticSOS) }
+                    .navigationTitle("Walk health details")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { showingHealthDetails = false }
+                    } }
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
         }
         .tint(CardioSafeTheme.teal)
         .interactiveDismissDisabled(viewModel.isActive)
+        .onChange(of: viewModel.automaticSOS.state) { _, state in
+            if state == .submitted {
+                if showingHealthDetails { showingHealthDetails = false }
+                else { showingEmergency = true }
+            }
+        }
     }
 
     private var summaryScreen: some View {
@@ -65,6 +94,16 @@ struct WalkingSessionView: View {
                     }
                     if viewModel.hasSummary, let session = viewModel.session {
                         summaryDetails(session)
+                        if let gaps = session.untrackedGaps, !gaps.isEmpty {
+                            Label("This walk was recovered after an interruption", systemImage: "clock.arrow.circlepath")
+                                .font(.headline)
+                            Text("Untracked gaps are excluded from walking/rest totals and route distance. After resuming, saved health measurements cover the resumed portion only.")
+                                .font(.footnote).foregroundStyle(.secondary)
+                            ForEach(Array(gaps.enumerated()), id: \.offset) { _, gap in
+                                Text("Not recorded: \(gap.from.formatted(.dateTime.day().month().hour().minute().second())) – \(gap.to.formatted(.dateTime.day().month().hour().minute().second()))")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
                     }
                     DisclosureGroup("About this record") { WalkingModeNote().padding(.top, 10) }.font(.subheadline)
                     if viewModel.hasSummary {
@@ -114,36 +153,83 @@ struct WalkingSessionView: View {
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
-                    activeControls(viewModel.timing())
+                    VStack(spacing: 8) {
+                        AutomaticSOSBanner(model: viewModel.automaticSOS)
+                        if let stop = viewModel.restStop.reminder {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Label(viewModel.restStop.isNearby ? "Rest stop nearby" : stop.place.name, systemImage: "mappin.circle")
+                                        .font(.subheadline.bold())
+                                    Spacer()
+                                    Button { viewModel.restStop.clear() } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }.accessibilityLabel("Remove rest stop")
+                                }
+                                Text(viewModel.restStop.message ?? "").font(.caption)
+                                if viewModel.restStop.isNearby && !resting {
+                                    Button("Rest now") { _ = viewModel.beginRest() }.frame(minHeight: 44)
+                                } else if !viewModel.restStop.isNearby && !viewModel.restStop.canMonitorBackground {
+                                    Button("Enable background rest-stop alerts") { viewModel.restStop.enableBackground() }.font(.caption).frame(minHeight: 44)
+                                }
+                            }.padding(12).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16)).padding(.horizontal, 12)
+                        }
+                        activeControls(viewModel.timing())
+                    }
                 }
             }
     }
 
+    private var automaticSOSSettings: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Toggle("Automatic SOS simulation", isOn: Binding(
+                get: { viewModel.automaticSOS.enabled },
+                set: { viewModel.automaticSOS.setEnabled($0) }))
+                .disabled(!allowsAutomaticSOS)
+            if !allowsAutomaticSOS {
+                Text("Sign in with a patient account to enable automatic SOS simulation.").font(.caption).foregroundStyle(.secondary)
+            }
+            Text("For this walk while CardioSafe is open and unlocked. Two distinct HealthKit readings of at least 140 bpm, at least 10 seconds apart, start a 20-second cancellation countdown. This is a test threshold, not a medical assessment. Sign in as a patient to send a simulated hospital request. No real dispatch.")
+                .font(.caption).foregroundStyle(.secondary)
+            if viewModel.healthModel.supportsSimulatorFeed {
+                Toggle("High heart rate test samples", isOn: Binding(
+                    get: { viewModel.healthModel.highHeartRateTest },
+                    set: { viewModel.healthModel.highHeartRateTest = $0 }))
+                Text("Start the simulator feed below to write 160 bpm samples to HealthKit. The app reads them back through the HealthKit query.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
     private func activeControls(_ timing: WalkingSessionTiming) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(resting ? "REST BREAK" : "WALKING TIME")
-                        .font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(resting ? "Rest break" : "Walking time")
+                        .font(.caption).foregroundStyle(.secondary)
                     Text(viewModel.durationText(resting ? timing.currentRestSeconds : timing.walkingSeconds))
-                        .font(.system(size: typeSize.isAccessibilitySize ? 32 : 42, weight: .semibold, design: .rounded))
+                        .font(.system(.title, design: .rounded, weight: .semibold))
                         .monospacedDigit().foregroundStyle(resting ? restColour : CardioSafeTheme.text(for: colorScheme))
                 }
-                Spacer(minLength: 12)
-                VStack(alignment: .trailing, spacing: 5) {
-                    Text(resting ? "Walking paused" : (viewModel.session?.plan.map { "Target \($0.walkingMinutes) min" } ?? "No target set"))
-                        .font(.subheadline.weight(.medium))
-                    Text("Rest \(viewModel.durationText(timing.restingSeconds)) · \(Int(viewModel.session?.routeDistanceMetres ?? 0)) m")
-                        .font(.caption).foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                Button { showingHealthDetails = true } label: {
+                    Label("Health details", systemImage: "chevron.up")
+                        .font(.caption.weight(.semibold)).frame(minHeight: 44)
                 }
+                .accessibilityHint("Opens all health readings, data sources and connection controls")
             }
-            healthReadings
-            if viewModel.session?.plan != nil {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 20) { compactHealthMetrics }.font(.subheadline.weight(.medium))
+                VStack(alignment: .leading, spacing: 6) { compactHealthMetrics }.font(.subheadline.weight(.medium))
+            }
+            if viewModel.healthModel.usesSimulatorSamples {
+                Text("Simulated HealthKit samples").font(.caption2).foregroundStyle(.secondary)
+            }
+            if let plan = viewModel.session?.plan {
                 ProgressView(value: timing.progress).tint(CardioSafeTheme.teal)
                     .accessibilityLabel("Walking target progress")
-            }
-            if timing.targetReached {
-                Label("Walking target reached", systemImage: "checkmark.circle").font(.caption)
+                Text(timing.targetReached ? "Walking target reached" : "Target \(plan.walkingMinutes) min · Rest \(viewModel.durationText(timing.restingSeconds))")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else if resting {
+                Text("Walking paused · Total rest \(viewModel.durationText(timing.restingSeconds))")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             if resting, let minutes = viewModel.session?.plan?.restMinutesPerBreak {
                 Text(timing.currentRestSeconds >= Double(minutes) * 60
@@ -152,29 +238,23 @@ struct WalkingSessionView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             if typeSize.isAccessibilitySize {
-                VStack(spacing: 10) { restButton; finishButton }
+                VStack(spacing: 8) { restButton; finishButton }
             } else {
-                HStack(spacing: 12) { restButton; finishButton }
+                HStack(spacing: 10) { restButton; finishButton }
             }
         }
-        .padding(20).frame(maxWidth: 600)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 28))
+        .padding(16).frame(maxWidth: 600)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
         .padding(.horizontal, 12).padding(.bottom, 8)
         .frame(maxWidth: .infinity)
     }
 
-    @ViewBuilder
-    private var healthReadings: some View {
-        if typeSize.isAccessibilitySize || verticalSizeClass == .compact {
-            ScrollView {
-                WalkingHealthPanel(model: viewModel.healthModel,
-                                   gpsDistance: (viewModel.session?.routeDistanceMetres ?? 0) > 0 ? viewModel.session?.routeDistanceMetres : nil)
-            }
-            .frame(maxHeight: verticalSizeClass == .compact ? 100 : 200)
-        } else {
-            WalkingHealthPanel(model: viewModel.healthModel,
-                               gpsDistance: (viewModel.session?.routeDistanceMetres ?? 0) > 0 ? viewModel.session?.routeDistanceMetres : nil)
-        }
+    @ViewBuilder private var compactHealthMetrics: some View {
+        Label("\(viewModel.healthModel.steps.map(String.init) ?? "—") steps", systemImage: "shoeprints.fill")
+            .accessibilityLabel("Session steps, \(viewModel.healthModel.steps.map(String.init) ?? "unavailable")")
+        Label("\(viewModel.healthModel.heartRate.map { String(Int($0.rounded())) } ?? "—") bpm", systemImage: "heart.fill")
+            .accessibilityLabel("Latest heart rate, \(viewModel.healthModel.heartRate.map { String(Int($0.rounded())) + " beats per minute" } ?? "unavailable")")
+            .accessibilityHint("Open Health details to check when this sample was recorded")
     }
 
     private var statusHeader: some View {

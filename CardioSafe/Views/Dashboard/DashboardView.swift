@@ -6,6 +6,7 @@ struct DashboardView: View {
     let sessionViewModel: WalkingSessionViewModel
     let onSelectTab: (AppTab) -> Void
     let onEmergency: () -> Void
+    let onEmergencyContacts: () -> Void
 
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
@@ -21,10 +22,19 @@ struct DashboardView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 26) {
                 recoveryOverview
+                NavigationLink { HealthHistoryView() } label: {
+                    HStack {
+                        Label("Health history", systemImage: "chart.bar.xaxis")
+                        Spacer()
+                        Text("7 days").font(.caption).foregroundStyle(.secondary)
+                        Image(systemName: "chevron.right").font(.caption)
+                    }.font(.subheadline.weight(.semibold)).padding(16)
+                        .background(surface, in: RoundedRectangle(cornerRadius: 16))
+                }
                 walkingCompanion
                 careShortcuts
                 guardian
-                Label("Health information stays on your device", systemImage: "lock.shield")
+                Label("Saved walk measurements can sync with your account", systemImage: "lock.shield")
                     .font(.caption2).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity).padding(.bottom, 12)
             }
@@ -55,7 +65,7 @@ struct DashboardView: View {
                         .frame(width: 28, height: 28).accessibilityHidden(true)
                     Text("CardioSafe").font(.headline).tracking(-0.4)
                     Spacer(minLength: 4)
-                    Button(action: onEmergency) {
+                    Button(action: onEmergencyContacts) {
                         Text("SOS").font(.caption.bold())
                             .frame(minWidth: 44, minHeight: 44)
                             .foregroundStyle(Color(red: 1, green: 0.72, blue: 0.74))

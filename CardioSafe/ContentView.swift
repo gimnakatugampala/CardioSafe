@@ -7,9 +7,19 @@ struct ContentView: View {
     @Environment(AppLockViewModel.self) private var appLock
     @State private var shouldShowRestoredSOS = false
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var facilityAlerts = FacilitySOSAlerts()
+    @State private var notificationRouter = SOSNotificationRouter.shared
+    @State private var notificationDestination: SOSNotificationRoute?
+    @State private var documentRouter = DocumentReminderRouter.shared
+    @State private var reminderDestination: DocumentReminderRoute?
     @State private var selection: AppTab = .home
     @State private var accountModel = AccountViewModel(service: FirebaseAccountService())
+    @State private var accountRestored = false
+    @State private var dataReadyID: String?
+    @State private var accountSync = FirebaseAccountSync.shared
     @State private var showingEmergency = false
+    @State private var showingEmergencyContacts = false
     @State private var showingWalkingSession = false
     @State private var dashboardViewModel: DashboardViewModel
     @State private var sessionViewModel: WalkingSessionViewModel
@@ -19,7 +29,213 @@ struct ContentView: View {
         _sessionViewModel = State(initialValue: sessionViewModel)
     }
 
-    var body: some View {
+    private var accountDataKey: String { "\(accountModel.account?.id ?? "guest")-\(accountModel.account?.role.rawValue ?? "guest")" }
+
+    var body: some View { accountLifecycle }
+
+    private var workspace: some View {
+        VStack(spacing: 0) {
+            if dataReadyID == accountDataKey, accountModel.account?.usesHospitalWorkspace != true {
+                if sessionViewModel.needsRecoveryDecision { recoveryBanner }
+                else if let error = sessionViewModel.recoveryError {
+                    Label(error, systemImage: "exclamationmark.circle").font(.footnote).padding()
+                }
+            }
+            if AccountDeletionViewModel.shared.blocksDataAccess {
+                NavigationStack { AccountDataControlsView() }
+            } else if !accountRestored || dataReadyID != accountDataKey {
+                ProgressView("Opening CardioSafe…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if accountModel.account?.usesHospitalWorkspace == true {
+                HospitalWorkspaceView(model: accountModel)
+            } else {
+                patientTabs.id(accountModel.account?.id ?? "guest")
+            }
+        }
+        .environment(sessionViewModel)
+        .environment(facilityAlerts)
+        .environment(accountSync)
+        .fullScreenCover(isPresented: $showingWalkingSession) {
+            WalkingSessionView(viewModel: sessionViewModel, allowsAutomaticSOS: accountModel.account?.role == .patient)
+        }
+        .safeAreaInset(edge: .top) {
+            if !showingWalkingSession { AutomaticSOSBanner(model: sessionViewModel.automaticSOS) }
+        }
+        .tint(CardioSafeTheme.accent(for: scheme))
+        .preferredColorScheme(appearance == "dark" ? .dark : appearance == "light" ? .light : nil)
+    }
+
+    private var routedContent: some View {
+        workspace
+        .sheet(isPresented: $showingEmergency) { EmergencyHelpView() }
+        .sheet(isPresented: $showingEmergencyContacts) { EmergencyContactView() }
+        .sheet(item: $notificationDestination) { route in
+            NavigationStack {
+                if route.isAllowed(for: accountModel.account), !appLock.needsShield {
+                    FacilityRequestsView(hospitalID: route.hospitalID)
+                        .toolbar { ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") { notificationDestination = nil }
+                        } }
+                } else {
+                    ContentUnavailableView("Staff access required", systemImage: "lock", description: Text("Unlock CardioSafe and sign in with assigned hospital staff access."))
+                }
+            }
+        }
+        .onChange(of: showingEmergency) { _, showing in if !showing { presentNotificationIfPossible() } }
+        .onChange(of: showingWalkingSession) { _, showing in if !showing { presentNotificationIfPossible() } }
+        .sheet(item: $reminderDestination) { route in
+            NavigationStack {
+                if route.ownerID == (accountModel.account?.id ?? "guest"), accountModel.account?.usesHospitalWorkspace != true, !appLock.needsShield {
+                    ReminderDocumentDestination(documentID: route.documentID)
+                } else {
+                    ContentUnavailableView("Account changed", systemImage: "lock")
+                }
+            }
+        }
+        .onChange(of: documentRouter.pending) { _, _ in presentDocumentReminderIfPossible() }
+        .onChange(of: dataReadyID) { _, _ in presentDocumentReminderIfPossible() }
+        .onChange(of: showingEmergencyContacts) { _, _ in presentDocumentReminderIfPossible() }
+        .onChange(of: showingEmergency) { _, _ in presentDocumentReminderIfPossible() }
+        .onChange(of: showingWalkingSession) { _, _ in presentDocumentReminderIfPossible() }
+        .onChange(of: appLock.needsShield) { _, _ in presentDocumentReminderIfPossible() }
+        .onChange(of: hasCompletedIntroduction) { _, _ in presentDocumentReminderIfPossible() }
+    }
+
+    private var accountLifecycle: some View {
+        routedContent
+        .task(id: scenePhase) {
+            while !Task.isCancelled {
+                if AccountDeletionViewModel.shared.blocksDataAccess {
+                    sessionViewModel.automaticSOS.setEnabled(false)
+                    do { try await Task.sleep(for: .seconds(1)) } catch { return }
+                    continue
+                }
+                let eligible = scenePhase == .active && !appLock.needsShield && sessionViewModel.isActive
+                    && accountModel.account?.role == .patient && dataReadyID == accountDataKey
+                if scenePhase == .active, !appLock.needsShield, dataReadyID == accountDataKey,
+                   accountModel.account?.usesHospitalWorkspace != true,
+                   let action = WalkingVoiceQueue.take(owner: accountModel.account?.id ?? "guest") {
+                    _ = WalkingVoiceExecutor.apply(action, session: sessionViewModel, plan: dashboardViewModel.snapshot.walkingPlan)
+                    if sessionViewModel.isActive { showingWalkingSession = true }
+                }
+                let health = sessionViewModel.healthModel
+                if sessionViewModel.automaticSOS.tick(bpm: health.heartRate, sampleDate: health.heartRateDate,
+                    eligible: eligible, busy: dispatch.isActive || dispatch.isRestoring) {
+                    dispatch.start()
+                    if !showingWalkingSession { showingEmergency = true }
+                }
+                do { try await Task.sleep(for: .seconds(1)) } catch { return }
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { sessionViewModel.checkpoint(); sessionViewModel.automaticSOS.setEnabled(false) }
+        }
+        .onChange(of: appLock.needsShield) { _, shield in
+            if shield { sessionViewModel.automaticSOS.setEnabled(false) }
+        }
+        .onChange(of: notificationRouter.pending) { _, _ in presentNotificationIfPossible() }
+        .onChange(of: accountModel.account) { _, account in
+            facilityAlerts.configure(account: account)
+            sessionViewModel.automaticSOS.setEnabled(false)
+            showingEmergency = false
+            showingWalkingSession = false
+            selection = .home
+            showingEmergencyContacts = false
+            notificationDestination = nil
+            reminderDestination = nil
+            presentNotificationIfPossible()
+        }
+        .fullScreenCover(isPresented: Binding(get: { accountRestored && !hasCompletedIntroduction && accountModel.account?.usesHospitalWorkspace != true }, set: { _ in })) {
+            OnboardingView(account: accountModel.account, onFinish: {
+                hasCompletedIntroduction = true
+            }, onSetUpProfile: {
+                selection = .profile
+                hasCompletedIntroduction = true
+            })
+        }
+        .task(id: "\(accountRestored)-\(accountDataKey)") {
+            guard accountRestored, !AccountDeletionViewModel.shared.blocksDataAccess else { return }
+            let account = accountModel.account
+            let owner: String? = account?.usesHospitalWorkspace == false ? account?.id : nil
+            dataReadyID = nil
+            AccountDataScope.ownerID = owner
+            if (UserDefaults.standard.string(forKey: "walkingVoiceOwner") ?? "guest") != (owner ?? "guest") {
+                UserDefaults.standard.removeObject(forKey: WalkingVoiceQueue.key)
+            }
+            UserDefaults.standard.set(owner ?? "guest", forKey: "walkingVoiceOwner")
+            await sessionViewModel.useAccount(owner ?? "guest")
+            do {
+                if let owner {
+                    if ProcessInfo.processInfo.arguments.contains("-ImportExistingDeviceRecords") { LegacyAccountMigration.approve(owner: owner) }
+                    try await LegacyAccountMigration.claim(for: owner)
+                    try await LegacyAccountMigration.claimWalkingPlan(for: owner)
+                }
+            }
+            catch { accountSync.migrationError = "Some existing device records couldn’t be linked. Original records are preserved; retry from Account sync." }
+            guard !Task.isCancelled else { return }
+            await accountSync.start(owner: owner)
+            guard !Task.isCancelled else { return }
+            do {
+                let preferences = AccountAppearanceStore()
+                if let owner { try preferences.migrateExistingChoice(owner: owner) }
+                appearance = try preferences.load(owner: owner)
+            }
+            catch { appearance = "system"; accountSync.migrationError = "Appearance could not be restored. Retry Account sync." }
+            await dashboardViewModel.useAccount(owner ?? "guest")
+            guard !Task.isCancelled else { return }
+            await sessionViewModel.loadHistory()
+            dataReadyID = accountDataKey
+            showingEmergency = false
+            shouldShowRestoredSOS = false
+            let patientID = accountModel.account?.usesHospitalWorkspace == true ? nil : accountModel.account?.id
+            let shouldResume = await dispatch.restoreForAccount(ownerID: patientID)
+            guard !Task.isCancelled else { return }
+            shouldShowRestoredSOS = shouldResume
+            presentRestoredSOSIfPossible()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .accountDataRestored)) { notification in
+            guard !AccountDeletionViewModel.shared.blocksDataAccess,
+                  notification.object as? String == accountModel.account?.id else { return }
+            Task {
+                await sessionViewModel.loadHistory()
+                if let account = accountModel.account, !account.usesHospitalWorkspace {
+                    let owner = account.id
+                    await dashboardViewModel.refreshSyncedWalkingPlan(for: owner)
+                    guard owner == accountModel.account?.id else { return }
+                    do { appearance = try AccountAppearanceStore().load(owner: owner) }
+                    catch { accountSync.migrationError = "Appearance could not be restored. Retry Account sync." }
+                }
+            }
+        }
+        .onChange(of: appLock.needsShield) { _, _ in presentRestoredSOSIfPossible(); presentNotificationIfPossible() }
+        .onChange(of: hasCompletedIntroduction) { _, _ in presentRestoredSOSIfPossible(); presentNotificationIfPossible() }
+        .task {
+            await accountModel.restore()
+            accountRestored = true
+            facilityAlerts.configure(account: accountModel.account)
+            presentNotificationIfPossible()
+        }
+    }
+
+    private var recoveryBanner: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Unfinished walk found", systemImage: "figure.walk.circle").font(.headline)
+            if let date = sessionViewModel.recoveryCheckpoint {
+                Text("Saved through \(date.formatted(.dateTime.day().month().hour().minute().second())). Time and movement after that point were not recorded.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            HStack {
+                Button("Resume walk") {
+                    if sessionViewModel.resumeRecoveredWalk() { showingWalkingSession = true }
+                }.buttonStyle(.borderedProminent)
+                Button("Finish and save") {
+                    if sessionViewModel.finishRecoveredWalk() { showingWalkingSession = true }
+                }.buttonStyle(.bordered)
+            }
+        }.padding().frame(maxWidth: .infinity, alignment: .leading)
+            .background(CardioSafeTheme.surface(for: scheme))
+    }
+
+    private var patientTabs: some View {
         TabView(selection: $selection) {
             ForEach(AppTab.allCases) { tab in
                 Tab(tab.rawValue, systemImage: tab.symbol, value: tab) {
@@ -30,7 +246,7 @@ struct ContentView: View {
                             .toolbar(tab == .home ? .hidden : .visible, for: .navigationBar)
                             .toolbar {
                                 ToolbarItem(placement: .primaryAction) {
-                                    Button { showingEmergency = true } label: {
+                                    Button { showingEmergencyContacts = true } label: {
                                         Label("Emergency Help", systemImage: "sos.circle")
                                     }
                                     .tint(.red)
@@ -40,41 +256,33 @@ struct ContentView: View {
                 }
             }
         }
-        .toolbar(.hidden, for: .tabBar)
         .safeAreaInset(edge: .bottom, spacing: 0) { bottomNavigation }
-        .fullScreenCover(isPresented: $showingWalkingSession) {
-            WalkingSessionView(viewModel: sessionViewModel)
-        }
-        .tint(CardioSafeTheme.accent(for: scheme))
-        .preferredColorScheme(appearance == "dark" ? .dark : appearance == "light" ? .light : nil)
-        .sheet(isPresented: $showingEmergency) { EmergencyHelpView() }
-        .fullScreenCover(isPresented: Binding(get: { !hasCompletedIntroduction }, set: { _ in })) {
-            OnboardingView(account: accountModel.account, onFinish: {
-                hasCompletedIntroduction = true
-            }, onSetUpProfile: {
-                selection = .profile
-                hasCompletedIntroduction = true
-            })
-        }
-        .task(id: accountModel.account?.id) {
-            showingEmergency = false
-            shouldShowRestoredSOS = false
-            let shouldResume = await dispatch.restoreForAccount(ownerID: accountModel.account?.id)
-            guard !Task.isCancelled else { return }
-            shouldShowRestoredSOS = shouldResume
-            presentRestoredSOSIfPossible()
-        }
-        .onChange(of: appLock.needsShield) { _, _ in presentRestoredSOSIfPossible() }
-        .onChange(of: hasCompletedIntroduction) { _, _ in presentRestoredSOSIfPossible() }
-        .task {
-            await accountModel.restore()
-            await dashboardViewModel.loadWalkingPlan()
-            await sessionViewModel.loadHistory()
-        }
+    }
+
+    private func presentNotificationIfPossible() {
+        guard !appLock.needsShield, (hasCompletedIntroduction || accountModel.account?.usesHospitalWorkspace == true), !showingEmergency,
+              !showingWalkingSession, let account = accountModel.account,
+              let route = notificationRouter.pending else { return }
+        notificationRouter.pending = nil
+        guard route.isAllowed(for: account) else { return }
+        selection = .profile
+        notificationDestination = route
+    }
+
+    private func presentDocumentReminderIfPossible() {
+        guard accountRestored, dataReadyID == accountDataKey, !appLock.needsShield, hasCompletedIntroduction,
+              !showingEmergency, !showingEmergencyContacts, !showingWalkingSession,
+              notificationDestination == nil, reminderDestination == nil,
+              let route = documentRouter.pending else { return }
+        documentRouter.pending = nil
+        guard accountModel.account?.usesHospitalWorkspace != true,
+              route.ownerID == (accountModel.account?.id ?? "guest") else { return }
+        selection = .records
+        reminderDestination = route
     }
 
     private func presentRestoredSOSIfPossible() {
-        guard shouldShowRestoredSOS, !appLock.needsShield, hasCompletedIntroduction else { return }
+        guard accountModel.account?.usesHospitalWorkspace != true, shouldShowRestoredSOS, !appLock.needsShield, hasCompletedIntroduction else { return }
         shouldShowRestoredSOS = false
         showingEmergency = true
     }
@@ -140,14 +348,15 @@ struct ContentView: View {
                 viewModel: dashboardViewModel,
                 sessionViewModel: sessionViewModel,
                 onSelectTab: { selection = $0 },
-                onEmergency: { showingEmergency = true }
+                onEmergency: { showingEmergency = true },
+                onEmergencyContacts: { showingEmergencyContacts = true }
             )
         } else if tab == .profile {
             AccountView(model: accountModel, sessionModel: sessionViewModel)
         } else if tab == .care {
             CareFinderView()
         } else if tab == .records {
-            RecordsView(sessionModel: sessionViewModel)
+            RecordsView(sessionModel: sessionViewModel, ownerID: accountModel.account?.id)
         } else if tab == .walk {
             WalkingOverviewView(viewModel: dashboardViewModel, sessionViewModel: sessionViewModel)
         } else {

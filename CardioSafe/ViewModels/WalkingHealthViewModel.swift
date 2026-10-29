@@ -8,6 +8,7 @@ import Observation
 @Observable
 final class WalkingHealthViewModel {
     private(set) var isSimulatorFeedRunning = false
+    var highHeartRateTest = false
     private(set) var isStartingSimulatorFeed = false
     private(set) var usesSimulatorSamples = false
     var isResting = false
@@ -45,6 +46,7 @@ final class WalkingHealthViewModel {
         stop()
         simulatorSessionID = UUID().uuidString
         simulatorTick = 0
+        highHeartRateTest = false
         usesSimulatorSamples = false
         isResting = false
         sessionStart = date
@@ -143,7 +145,7 @@ final class WalkingHealthViewModel {
         let definitions: [(HKQuantityTypeIdentifier, HKUnit, Double)] = [
             (.stepCount, .count(), isResting ? 0 : 12),
             (.distanceWalkingRunning, .meter(), isResting ? 0 : 8.4),
-            (.heartRate, .count().unitDivided(by: .minute()), isResting ? 78 : Double(82 + (simulatorTick % 5) * 2)),
+            (.heartRate, .count().unitDivided(by: .minute()), highHeartRateTest ? 160 : (isResting ? 78 : Double(82 + (simulatorTick % 5) * 2))),
             (.activeEnergyBurned, .kilocalorie(), isResting ? 0 : 0.7)
         ]
         let samples = definitions.map { type, unit, value in

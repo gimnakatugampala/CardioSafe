@@ -21,6 +21,9 @@ final class DocumentsViewModel {
     }
     func rename(_ document: ScannedDocument, title: String) -> Bool {
         do {
+            guard try store.load().first(where: { $0.id == document.id }) == document else {
+                errorMessage = "This document changed on another phone. Reopen it before renaming."; return false
+            }
             try store.rename(document, title: title)
             if let index = documents.firstIndex(where: { $0.id == document.id }) {
                 documents[index] = ScannedDocument(id: document.id, title: title.trimmingCharacters(in: .whitespacesAndNewlines), createdAt: document.createdAt, reviewedText: document.reviewedText, pageCount: document.pageCount)

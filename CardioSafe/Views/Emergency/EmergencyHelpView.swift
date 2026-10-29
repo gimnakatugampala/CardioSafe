@@ -5,16 +5,28 @@ struct EmergencyHelpView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
     @State private var showingDetails = false
+    @State private var showingEmergencyContacts = false
     private var accent: Color { scheme == .dark ? .cyan : CardioSafeTheme.teal }
 
     var body: some View {
-        if model.stage == .assigned, let assignedAt = model.assignedAt,
+        Group {
+        if [.assigned, .arrived, .transporting].contains(model.stage), let assignedAt = (model.stage == .transporting ? model.pickedUpAt : model.assignedAt),
            let destination = model.destination,
            destination.patientCoordinate != nil, destination.hospitalCoordinate != nil {
             AmbulanceTrackingView(destination: destination, assignedAt: assignedAt, dispatch: model)
         } else {
             requestBody
         }
+        }
+        .safeAreaInset(edge: .bottom) {
+            Button { showingEmergencyContacts = true } label: {
+                Label("Emergency contact & location", systemImage: "phone.fill")
+                    .font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 48)
+            }
+            .buttonStyle(.bordered).padding(.horizontal).padding(.vertical, 8)
+            .background(.regularMaterial)
+        }
+        .sheet(isPresented: $showingEmergencyContacts) { EmergencyContactView() }
     }
 
     private var requestBody: some View {
@@ -50,7 +62,10 @@ struct EmergencyHelpView: View {
                             Text("Simulated arrival time").font(.caption).foregroundStyle(.secondary)
                         }
                     }
-                    if model.isActive {
+                    if [.hospitalArrived, .transporting, .arrived].contains(model.stage) {
+                        Label("Waiting for the crew’s confirmation", systemImage: "checkmark.shield")
+                            .foregroundStyle(accent)
+                    } else if model.isActive {
                         if model.isCancelling {
                             ProgressView("Confirming cancellation…")
                         } else if model.stage == .accepted {
@@ -108,7 +123,9 @@ struct EmergencyHelpView: View {
         case .accepted: "Hospital accepted"
         case .assigned: "Ambulance assigned"
         case .enRoute: "Ambulance on the way"
-        case .arrived: "Simulation complete"
+        case .arrived: "Ambulance has arrived"
+        case .transporting: "On the way to hospital"
+        case .hospitalArrived: "Arrived at hospital"
         case .completed: "Completed"
         case .cancelled: "Request cancelled"
         }
@@ -120,7 +137,9 @@ struct EmergencyHelpView: View {
         case .failed: model.errorMessage ?? "No request was sent. Try again."
         case .reviewing: "Waiting for hospital staff to accept your request."
         case .accepted, .assigned, .enRoute: "Hospital staff accepted your simulation request. Waiting for ambulance assignment."
-        case .arrived: "The simulated ambulance has arrived. No real service was contacted."
+        case .arrived: "Stay at your pickup location. The crew will confirm pickup."
+        case .transporting: "Your crew is taking you to the hospital. No action is needed."
+        case .hospitalArrived: "Hospital staff are completing your handover. No action is needed."
         case .completed: "Hospital staff completed this request. You can close this screen or start a new SOS."
         case .cancelled: "The simulation has stopped."
         }
@@ -132,7 +151,8 @@ struct EmergencyHelpView: View {
         case .failed: "exclamationmark.circle"
         case .accepted: "cross.case.fill"
         case .assigned, .enRoute: "truck.box.fill"
-        case .arrived, .completed: "checkmark.circle.fill"
+        case .transporting: "cross.case.fill"
+        case .arrived, .hospitalArrived, .completed: "checkmark.circle.fill"
         case .cancelled: "xmark.circle"
         }
     }

@@ -6,6 +6,7 @@ struct HospitalArrivalReminderCard: View {
     @Environment(HospitalArrivalViewModel.self) private var model
     @Environment(\.openURL) private var openURL
     @Environment(\.colorScheme) private var scheme
+    @State private var exitFollowUp = false
     private var isSelected: Bool { model.reminder?.place.id == hospital.id }
 
     var body: some View {
@@ -14,6 +15,7 @@ struct HospitalArrivalReminderCard: View {
                 .font(.headline)
             Text("Get a one-time notification when you enter this hospital’s 200 m area.")
                 .font(.subheadline).foregroundStyle(.secondary)
+            if !isSelected { Toggle("Departure follow-up after arrival", isOn: $exitFollowUp) }
             if isSelected {
                 Label(model.isMonitoring ? "Monitoring arrival area" : "Monitoring needs attention",
                       systemImage: model.isMonitoring ? "checkmark.circle.fill" : "exclamationmark.circle")
@@ -21,7 +23,7 @@ struct HospitalArrivalReminderCard: View {
                 Button("Stop arrival reminder", role: .destructive) { model.cancel() }
                     .buttonStyle(.bordered)
                 if !model.isMonitoring {
-                    Button("Retry monitoring") { Task { await model.enable(for: place) } }.disabled(model.isBusy)
+                    Button("Retry monitoring") { Task { await model.enable(for: place, exitFollowUp: isSelected ? model.reminder?.exitFollowUp == true : exitFollowUp) } }.disabled(model.isBusy)
                 }
             } else {
                 if let previous = model.reminder {
@@ -29,7 +31,7 @@ struct HospitalArrivalReminderCard: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Button {
-                    Task { await model.enable(for: place) }
+                    Task { await model.enable(for: place, exitFollowUp: isSelected ? model.reminder?.exitFollowUp == true : exitFollowUp) }
                 } label: {
                     Label(model.isBusy ? "Enabling…" : enableTitle, systemImage: "bell.badge")
                         .foregroundStyle(.white)

@@ -13,12 +13,19 @@ protocol ScannedDocumentStoring {
 @MainActor
 struct LocalScannedDocumentStore: ScannedDocumentStoring {
     private let directory: URL
+    private let ownerID: String?
+    private let syncEnabled: Bool
     init(directory: URL? = nil) {
-        self.directory = directory ?? URL.applicationSupportDirectory.appendingPathComponent("ScannedDocuments", isDirectory: true)
+        self.ownerID = AccountDataScope.ownerID
+        self.syncEnabled = directory == nil
+        self.directory = directory ?? AccountDataScope.directory("ScannedDocuments")
     }
     func url(for document: ScannedDocument) -> URL { file(document.id) }
     private func file(_ id: UUID) -> URL { directory.appendingPathComponent(id.uuidString).appendingPathExtension("pdf") }
     func load() throws -> [ScannedDocument] {
+        if syncEnabled, let ownerID {
+            return try AccountSyncCache.shared.values(ScannedDocument.self, owner: ownerID, kind: "document").sorted { $0.createdAt > $1.createdAt }
+        }
         guard FileManager.default.fileExists(atPath: directory.path) else { return [] }
         return try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension.lowercased() == "pdf" }
@@ -47,17 +54,28 @@ struct LocalScannedDocumentStore: ScannedDocumentStoring {
         attributes[PDFDocumentAttribute.keywordsAttribute] = keywords
         pdf.documentAttributes = attributes
         try write(pdf, to: file(record.id))
+        if syncEnabled, let ownerID { try AccountSyncCache.shared.put(record, owner: ownerID, kind: "document", key: record.id.uuidString) }
         return record
     }
     func rename(_ document: ScannedDocument, title: String) throws {
         let title = try validated(title)
-        guard let pdf = PDFDocument(url: file(document.id)) else { throw DocumentStoreError.unreadable }
+        if syncEnabled, let ownerID {
+            let updated = ScannedDocument(id: document.id, title: title, createdAt: document.createdAt, reviewedText: document.reviewedText, pageCount: document.pageCount)
+            try AccountSyncCache.shared.put(updated, owner: ownerID, kind: "document", key: document.id.uuidString)
+        }
+        guard let pdf = PDFDocument(url: file(document.id)) else {
+            if syncEnabled { return }
+            throw DocumentStoreError.unreadable
+        }
         var attributes = pdf.documentAttributes ?? [:]
         attributes[PDFDocumentAttribute.titleAttribute] = title
         pdf.documentAttributes = attributes
         try write(pdf, to: file(document.id))
     }
-    func delete(_ document: ScannedDocument) throws { try FileManager.default.removeItem(at: file(document.id)) }
+    func delete(_ document: ScannedDocument) throws {
+        if syncEnabled, let ownerID { try AccountSyncCache.shared.put(document, owner: ownerID, kind: "document", key: document.id.uuidString, deleted: true) }
+        if FileManager.default.fileExists(atPath: file(document.id).path) { try FileManager.default.removeItem(at: file(document.id)) }
+    }
     private static let reviewMarker = "CardioSafeReviewedTextV1"
     private static func reviewedText(in attributes: [AnyHashable: Any]) -> String? {
         guard (attributes[PDFDocumentAttribute.keywordsAttribute] as? [String])?.contains(reviewMarker) == true else { return nil }

@@ -13,7 +13,7 @@ struct PatientProfileView: View {
             Section {
                 Label("Your personal details", systemImage: "person.text.rectangle")
                     .font(.title3.bold()).foregroundStyle(scheme == .dark ? Color.cyan : CardioSafeTheme.teal).padding(.vertical, 8)
-                Text("Saved on this device for this account. These details are not sent to hospitals or emergency services.")
+                Text("Saved locally and backed up privately to your Firebase account. Hospital staff cannot read your profile backup.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if model.isLoaded {

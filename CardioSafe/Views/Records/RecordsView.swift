@@ -6,6 +6,9 @@ import PhotosUI
 
 struct RecordsView: View {
     let sessionModel: WalkingSessionViewModel
+    var ownerID: String? = nil
+    @State private var sosSummaries: [SOSJourneySummary] = []
+    @State private var summaryLoadError = false
     @State private var model = DocumentsViewModel()
     @State private var showingDocuments = false
     @State private var imageSelection: PhotosPickerItem?
@@ -47,7 +50,17 @@ struct RecordsView: View {
                 }
             }
         }
-        .task { model.load() }
+        .task(id: ownerID) {
+            model.load()
+            do { sosSummaries = try ownerID.map { try SOSJourneySummaryStore().load(ownerID: $0) } ?? []; summaryLoadError = false }
+            catch { sosSummaries = []; summaryLoadError = true }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .accountDataRestored)) { notification in
+            guard notification.object as? String == ownerID else { return }
+            model.load()
+            do { sosSummaries = try ownerID.map { try SOSJourneySummaryStore().load(ownerID: $0) } ?? [] }
+            catch { summaryLoadError = true }
+        }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.pdf], allowsMultipleSelection: false) { result in
             switch result {
             case .success(let urls):
@@ -119,7 +132,7 @@ struct RecordsView: View {
                 Button("Delete \(document.title)", role: .destructive) { model.delete(document); deleting = nil }
             }
             Button("Cancel", role: .cancel) { deleting = nil }
-        } message: { Text("This permanently removes the PDF and its linked reminders from this device. There is no cloud copy in CardioSafe.") }
+        } message: { Text("This removes the document from your account’s list and cancels its linked reminders. The PDF file on this phone is removed; PDF files are not backed up.") }
     }
     private var documents: some View {
         List {
@@ -128,7 +141,7 @@ struct RecordsView: View {
                     Label("YOUR DOCUMENTS", systemImage: "doc.text.viewfinder")
                         .font(.caption.weight(.bold)).tracking(1.2)
                     Text("Keep your care records close.").font(.title2.bold())
-                    Text("Add reports and prescriptions. Saved on this device only.")
+                    Text("Document text and reminders sync to your account. PDF files stay on this phone.")
                         .font(.subheadline).foregroundStyle(.secondary)
                     if scanningAvailable {
                         Button(action: startScan) { Label("Scan document", systemImage: "doc.viewfinder") }.buttonStyle(.borderedProminent)
@@ -144,6 +157,30 @@ struct RecordsView: View {
                         .font(.caption).foregroundStyle(.secondary)
                     if readingImport { ProgressView("Opening document…") }
                 }.padding(.vertical, 8)
+            }
+            if summaryLoadError { Section { Text("SOS summaries couldn’t be loaded. Reopen Records to retry.").foregroundStyle(.secondary) } }
+            if !sosSummaries.isEmpty {
+                Section("Completed SOS journeys") {
+                    ForEach(sosSummaries) { summary in
+                        NavigationLink {
+                            Form {
+                                Section("Handover completed") {
+                                    Text(summary.hospital).font(.headline)
+                                    Text("Request \(summary.id.prefix(8))")
+                                    if let date = summary.assignedAt { LabeledContent("Ambulance assigned", value: date.formatted()) }
+                                    if let date = summary.pickedUpAt { LabeledContent("Patient picked up", value: date.formatted()) }
+                                    LabeledContent("Handover completed", value: summary.completedAt.formatted())
+                                }
+                                Text("Simulation record · Saved on this device")
+                            }.navigationTitle("SOS summary")
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Label(summary.hospital, systemImage: "checkmark.circle")
+                                Text(summary.completedAt.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
             }
             if let error = model.errorMessage {
                 Section {
@@ -260,7 +297,7 @@ private struct ScanReviewView: View {
                            isOn: $review.hasReviewed)
                         .font(.subheadline).padding(.horizontal).disabled(saving)
                 }
-                Text("Recognition and storage stay on this device. Review before saving.")
+                Text("Recognition runs on this device. Reviewed text syncs to your account; the PDF stays local.")
                     .font(.caption).foregroundStyle(.secondary).padding(.horizontal)
                 if let error = model.errorMessage {
                     Text(error).font(.subheadline).foregroundStyle(.red).padding(.horizontal)

@@ -1,6 +1,6 @@
 import Foundation
 
-struct ScannedDocument: Identifiable, Equatable {
+struct ScannedDocument: Identifiable, Equatable, Codable {
     let id: UUID
     let title: String
     let createdAt: Date

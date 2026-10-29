@@ -36,7 +36,7 @@ struct WalkingPlanSetupView: View {
                     Text("Only add a rest duration if your clinician provided one. Planned rest per break is separate from the actual total time spent resting.")
                 }
                 Section {
-                    Label("Saved on this device. Account sync is not connected.", systemImage: "lock.shield")
+                    Label("Saved locally. Patient accounts back up this plan through Account sync.", systemImage: "lock.shield")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 if let error = viewModel.saveError {

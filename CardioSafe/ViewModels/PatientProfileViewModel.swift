@@ -49,6 +49,9 @@ final class PatientProfileViewModel {
             errorMessage = "Provide both the emergency contact’s name and phone number, or leave both blank."; return false
         }
         do {
+            guard try store.load(accountID: accountID) == saved else {
+                errorMessage = "Your profile changed on another phone. Close editing and reopen the profile before saving."; return false
+            }
             try store.save(profile, accountID: accountID)
             saved = profile; draft = profile; errorMessage = nil
             return true

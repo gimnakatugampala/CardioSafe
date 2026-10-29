@@ -15,8 +15,11 @@ struct HospitalArrivalReminder: Codable, Equatable, Identifiable {
     let id: UUID
     let place: ArrivalPlace
     var hasBeenOutside: Bool
+    var exitFollowUp: Bool? = nil
+    var arrivalNotified: Bool? = nil
+    var isRestStop: Bool? = nil
     static let radiusMetres: Double = 200
-    var regionID: String { "cardiosafe.arrival." + id.uuidString }
+    var regionID: String { (isRestStop == true ? "cardiosafe.reststop." : "cardiosafe.arrival.") + id.uuidString }
 }
 
 enum ArrivalLocationPermission { case notDetermined, whenInUse, always, denied }
@@ -46,6 +49,10 @@ enum ArrivalEvent {
     func authorize() async throws -> Bool
     func schedule(id: String) async throws
     func cancel(id: String)
+    func scheduleExit(id: String) async throws
+}
+extension ArrivalNotifying {
+    func scheduleExit(id: String) async throws { try await schedule(id: id) }
 }
 @MainActor protocol ArrivalReminderStoring {
     func load() throws -> HospitalArrivalReminder?

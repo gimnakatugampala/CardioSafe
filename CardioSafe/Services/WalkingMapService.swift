@@ -6,12 +6,21 @@ protocol WalkingMapServicing {
     func walkingRoute(from start: CLLocationCoordinate2D, to destination: MapPlace) async throws -> WalkingMapRoute
     func cancelSearch()
     func cancelRoute()
+    func setCommunityRoutingAllowed(_ allowed: Bool)
+}
+
+extension WalkingMapServicing {
+    func setCommunityRoutingAllowed(_ allowed: Bool) {}
 }
 
 @MainActor
 final class WalkingMapService: WalkingMapServicing {
     private var searchOperation: MKLocalSearch?
     private var routeOperation: MKDirections?
+    private let community = CommunityFootRoutingService()
+    private var allowsCommunityRouting = false
+    private var routeGeneration = UUID()
+    func setCommunityRoutingAllowed(_ allowed: Bool) { allowsCommunityRouting = allowed; if !allowed { community.cancel() } }
 
     func search(query: String, category: MapPlaceCategory, region: MKCoordinateRegion) async throws -> [MapPlace] {
         cancelSearch()
@@ -44,6 +53,7 @@ final class WalkingMapService: WalkingMapServicing {
 
     func walkingRoute(from start: CLLocationCoordinate2D, to destination: MapPlace) async throws -> WalkingMapRoute {
         cancelRoute()
+        let expected = routeGeneration
         let request = MKDirections.Request()
         request.source = MKMapItem(location: CLLocation(latitude: start.latitude, longitude: start.longitude), address: nil)
         request.destination = destination.item
@@ -61,14 +71,22 @@ final class WalkingMapService: WalkingMapServicing {
             timeout.cancel()
             if routeOperation === operation { routeOperation = nil }
         }
-        let response = try await operation.calculate()
-        try Task.checkCancellation()
-        guard let route = response.routes.first else { throw MapServiceError.noRoute }
-        return WalkingMapRoute(polyline: route.polyline, distanceMetres: route.distance, expectedSeconds: route.expectedTravelTime)
+        do {
+            let response = try await operation.calculate()
+            try Task.checkCancellation()
+            guard expected == routeGeneration else { throw CancellationError() }
+            guard let route = response.routes.first else { throw MapServiceError.noRoute }
+            return WalkingMapRoute(polyline: route.polyline, distanceMetres: route.distance, expectedSeconds: route.expectedTravelTime)
+        } catch {
+            try Task.checkCancellation()
+            guard expected == routeGeneration else { throw CancellationError() }
+            guard allowsCommunityRouting else { throw CommunityRoutingError.consentRequired }
+            return try await community.route(from: start, to: destination.coordinate)
+        }
     }
 
     func cancelSearch() { searchOperation?.cancel(); searchOperation = nil }
-    func cancelRoute() { routeOperation?.cancel(); routeOperation = nil }
+    func cancelRoute() { routeGeneration = UUID(); routeOperation?.cancel(); routeOperation = nil; community.cancel() }
 
     private enum MapServiceError: Error { case noRoute }
 }

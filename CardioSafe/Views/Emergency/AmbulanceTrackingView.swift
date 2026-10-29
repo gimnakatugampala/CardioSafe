@@ -8,6 +8,7 @@ struct AmbulanceTrackingView: View {
     @State private var tracking = AmbulanceTrackingViewModel()
     @Environment(\.dismiss) private var dismiss
 
+    private var transporting: Bool { dispatch.stage == .transporting }
     var body: some View {
         NavigationStack {
             TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -47,7 +48,7 @@ struct AmbulanceTrackingView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(arrived ? "Arrived at patient" : "Ambulance on the way").font(.title2.bold())
+                                Text(transporting ? (arrived ? "At hospital · Awaiting confirmation" : "On the way to hospital") : dispatch.stage == .arrived ? "Ambulance has arrived" : arrived ? "At pickup · Awaiting confirmation" : "Ambulance on the way").font(.title2.bold())
                                 Text(destination.name).font(.subheadline).foregroundStyle(.secondary)
                             }
                             Spacer()
@@ -72,7 +73,7 @@ struct AmbulanceTrackingView: View {
                             Text("90-second simulation · Not live GPS tracking").font(.caption).foregroundStyle(.secondary)
                         }
                         if let error = dispatch.errorMessage { Text(error).font(.caption).foregroundStyle(.orange) }
-                        if arrived {
+                        if arrived || transporting || dispatch.stage == .arrived {
                             Button("Close tracking") { dismiss() }.buttonStyle(.borderedProminent).frame(maxWidth: .infinity)
                         } else {
                             Button(dispatch.isCancelling ? "Cancelling…" : "Cancel SOS", role: .destructive) { dispatch.cancel() }
@@ -83,13 +84,13 @@ struct AmbulanceTrackingView: View {
             }
             .navigationTitle("Ambulance tracking").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Close") { dismiss() } } }
-            .task { await loadRoute() }
+            .task(id: transporting) { await loadRoute() }
             .onDisappear { tracking.stop() }
         }
     }
 
     private func loadRoute() async {
         guard let hospital = destination.hospitalCoordinate, let patient = destination.patientCoordinate else { return }
-        await tracking.load(from: hospital, to: patient)
+        await tracking.load(from: transporting ? patient : hospital, to: transporting ? hospital : patient)
     }
 }

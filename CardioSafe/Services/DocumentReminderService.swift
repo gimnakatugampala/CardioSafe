@@ -5,23 +5,38 @@ import UserNotifications
 protocol DocumentReminderScheduling {
     func schedule(_ reminder: DocumentReminder) async throws
     func cancel(_ reminder: DocumentReminder)
+    func deliveredIDs() async -> Set<String>
+}
+
+extension DocumentReminderScheduling {
+    func deliveredIDs() async -> Set<String> { [] }
 }
 
 @MainActor
 struct DocumentReminderService: DocumentReminderScheduling {
     func schedule(_ reminder: DocumentReminder) async throws {
+        let owner = AccountDataScope.ownerID ?? "guest"
         let center = UNUserNotificationCenter.current()
         guard try await center.requestAuthorization(options: [.alert, .sound]) else {
             throw DocumentReminderError.permission
         }
-        guard reminder.date > .now else { throw DocumentReminderError.date }
+        guard owner == (AccountDataScope.ownerID ?? "guest") else { throw DocumentReminderError.accountChanged }
+        guard reminder.nextDate() != nil else { throw DocumentReminderError.date }
         let content = UNMutableNotificationContent()
         content.title = "Your CardioSafe reminder"
         content.body = "Open Records to review your saved reminder."
         content.sound = .default
-        let trigger = UNCalendarNotificationTrigger(dateMatching: Calendar.current.dateComponents(
-            [.year, .month, .day, .hour, .minute, .second], from: reminder.date), repeats: false)
+        content.userInfo = ["type": "document_reminder", "documentID": reminder.documentID.uuidString,
+                            "ownerID": owner]
+        let trigger = UNCalendarNotificationTrigger(dateMatching: reminder.triggerComponents(), repeats: reminder.frequency != .once)
         try await center.add(UNNotificationRequest(identifier: reminder.notificationID, content: content, trigger: trigger))
+        guard owner == (AccountDataScope.ownerID ?? "guest") else {
+            cancel(reminder)
+            throw DocumentReminderError.accountChanged
+        }
+    }
+    func deliveredIDs() async -> Set<String> {
+        Set(await UNUserNotificationCenter.current().deliveredNotifications().map { $0.request.identifier })
     }
     func cancel(_ reminder: DocumentReminder) {
         let center = UNUserNotificationCenter.current()
@@ -31,9 +46,10 @@ struct DocumentReminderService: DocumentReminderScheduling {
 }
 
 enum DocumentReminderError: LocalizedError {
-    case permission, date, title
+    case permission, date, title, accountChanged
     var errorDescription: String? {
         switch self {
+        case .accountChanged: "Your account changed. Reopen reminders before saving."
         case .permission: "Notifications are off. Allow CardioSafe notifications in Settings, then retry."
         case .date: "Choose a reminder time in the future."
         case .title: "Enter a reminder title of 1–100 characters."

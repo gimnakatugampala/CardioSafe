@@ -7,11 +7,14 @@ struct SOSRequest: Identifiable {
     let status: String
     let createdAt: Date?
     var assignedAt: Date? = nil
+    var pickedUpAt: Date? = nil
 }
 
 @MainActor
 protocol SOSRequestServicing {
     var assignedAt: Date? { get }
+    var pickedUpAt: Date? { get }
+    var summaryWarning: String? { get }
     func create(destination: DispatchDestination) async throws
     func restore() async throws -> RestoredSOS?
     func observe(_ receive: @escaping (Result<String, Error>) -> Void)
@@ -19,8 +22,15 @@ protocol SOSRequestServicing {
     func stop()
 }
 
+extension SOSRequestServicing {
+    var pickedUpAt: Date? { nil }
+    var summaryWarning: String? { nil }
+}
+
 @MainActor
 final class SOSRequestService: SOSRequestServicing {
+    private(set) var summaryWarning: String?
+    private(set) var pickedUpAt: Date?
     private(set) var assignedAt: Date?
     private var listener: ListenerRegistration?
     private var reference: DocumentReference?
@@ -47,6 +57,7 @@ final class SOSRequestService: SOSRequestServicing {
         let ref = Firestore.firestore().collection("hospitals").document(destination.hospitalID)
             .collection("sosRequests").document()
         let saved = SavedSOS(ownerID: user.uid, requestID: ref.documentID, destination: destination)
+        try await CloudSOSRecovery().reserve(saved)
         // Persist the ID before submitting: a crash or lost acknowledgement retries this same ID.
         try journal.save(saved)
         confirmedTerminalID = nil
@@ -57,7 +68,10 @@ final class SOSRequestService: SOSRequestServicing {
 
     func restore() async throws -> RestoredSOS? {
         guard let user = Auth.auth().currentUser else { throw DispatchSelectionError.signIn }
-        guard let saved = try journal.load(ownerID: user.uid) else { return nil }
+        let cloud = try await CloudSOSRecovery().load(owner: user.uid)
+        if let cloud { try journal.save(cloud) }
+        guard let saved = try cloud ?? journal.load(ownerID: user.uid) else { return nil }
+        if cloud == nil { try await CloudSOSRecovery().reserve(saved) }
         let ref = document(for: saved)
         reference = ref
         var snapshot: DocumentSnapshot
@@ -78,12 +92,14 @@ final class SOSRequestService: SOSRequestServicing {
               Auth.auth().currentUser?.uid == saved.ownerID,
               let data = snapshot.data(), data["patientID"] as? String == saved.ownerID,
               data["isSimulation"] as? Bool == true, let status = data["status"] as? String,
-              ["pending", "accepted", "assigned", "cancelled", "completed"].contains(status) else {
+              SOSJourneyStatus(rawValue: status) != nil else {
             throw DispatchSelectionError.unavailable
         }
+        pickedUpAt = (data["pickedUpAt"] as? Timestamp)?.dateValue()
         assignedAt = (data["assignedAt"] as? Timestamp)?.dateValue()
+        if status == "completed" { archive(data: data, ownerID: saved.ownerID) }
         confirmedTerminalID = ["cancelled", "completed"].contains(status) ? saved.requestID : nil
-        return RestoredSOS(saved: saved, status: status, assignedAt: assignedAt)
+        return RestoredSOS(saved: saved, status: status, assignedAt: assignedAt, pickedUpAt: pickedUpAt)
     }
 
     func observe(_ receive: @escaping (Result<String, Error>) -> Void) {
@@ -108,10 +124,23 @@ final class SOSRequestService: SOSRequestServicing {
                     receive(.failure(DispatchSelectionError.unavailable)); return
                 }
                 if ["cancelled", "completed"].contains(status) { self?.confirmedTerminalID = reference.documentID }
+                self?.pickedUpAt = (snapshot.data()?["pickedUpAt"] as? Timestamp)?.dateValue()
                 self?.assignedAt = (snapshot.data()?["assignedAt"] as? Timestamp)?.dateValue()
+                if status == "completed", let owner, let data = snapshot.data() { self?.archive(data: data, ownerID: owner) }
                 receive(.success(status))
             }
         }
+    }
+
+    private func archive(data: [String: Any], ownerID: String) {
+        do {
+            guard let saved = try journal.load(ownerID: ownerID),
+                  let completedAt = (data["completedAt"] as? Timestamp)?.dateValue() else { return }
+            try SOSJourneySummaryStore().save(SOSJourneySummary(id: saved.requestID, hospital: saved.destination.name,
+                assignedAt: (data["assignedAt"] as? Timestamp)?.dateValue(), pickedUpAt: (data["pickedUpAt"] as? Timestamp)?.dateValue(),
+                completedAt: completedAt), ownerID: ownerID)
+            summaryWarning = nil
+        } catch { summaryWarning = "Handover is complete, but the local summary couldn’t be saved. Reopen this request to retry." }
     }
 
     func cancel() async throws {

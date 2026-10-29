@@ -62,6 +62,16 @@ final class WalkingReminderService: WalkingReminderServicing {
 final class WalkingNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     static let shared = WalkingNotificationDelegate()
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                            didReceive response: UNNotificationResponse) async {
+        guard response.actionIdentifier == UNNotificationDefaultActionIdentifier else { return }
+        let payload = response.notification.request.content.userInfo
+        if let route = SOSNotificationRoute(payload: payload) {
+            await MainActor.run { SOSNotificationRouter.shared.pending = route }
+        } else if let route = DocumentReminderRoute(payload: payload) {
+            await MainActor.run { DocumentReminderRouter.shared.pending = route }
+        }
+    }
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
                                             willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         [.banner, .list, .sound]
     }

@@ -4,7 +4,7 @@ import Observation
 @MainActor @Observable
 final class DispatchDemoViewModel {
     enum Stage: Int, CaseIterable {
-        case ready, finding, reviewing, accepted, assigned, enRoute, arrived, completed, cancelled, failed
+        case ready, finding, reviewing, accepted, assigned, enRoute, arrived, transporting, hospitalArrived, completed, cancelled, failed
         var title: String {
             switch self {
             case .ready: "Ready"
@@ -15,6 +15,8 @@ final class DispatchDemoViewModel {
             case .assigned: "Ambulance assigned"
             case .enRoute: "Ambulance en route"
             case .arrived: "Ambulance arrived"
+            case .transporting: "On the way to hospital"
+            case .hospitalArrived: "Arrived at hospital"
             case .completed: "Completed"
             case .cancelled: "Request cancelled"
             }
@@ -26,12 +28,13 @@ final class DispatchDemoViewModel {
         let date: Date
     }
     private(set) var stage: Stage = .ready
+    private(set) var pickedUpAt: Date?
     private(set) var assignedAt: Date?
     private(set) var destination: DispatchDestination?
     private(set) var errorMessage: String?
     @ObservationIgnored private let selector: any DispatchHospitalSelecting
     private(set) var events: [Event] = []
-    var isActive: Bool { [.finding, .reviewing, .accepted, .assigned, .enRoute].contains(stage) }
+    var isActive: Bool { [.finding, .reviewing, .accepted, .assigned, .enRoute, .arrived, .transporting, .hospitalArrived].contains(stage) }
     var sampleETAMinutes: Int? { nil }
     @ObservationIgnored private var progression: Task<Void, Never>?
     @ObservationIgnored private let requests: any SOSRequestServicing
@@ -51,7 +54,7 @@ final class DispatchDemoViewModel {
         let expected = generation
         boundOwnerID = ownerID
         progression?.cancel(); selector.cancel(); requests.stop()
-        destination = nil; assignedAt = nil; errorMessage = nil; events = []
+        destination = nil; assignedAt = nil; pickedUpAt = nil; errorMessage = nil; events = []
         isCancelling = false; cancellationRequested = false; stage = .ready
         guard ownerID != nil else { isRestoring = false; return false }
         isRestoring = true
@@ -80,7 +83,7 @@ final class DispatchDemoViewModel {
         generation = UUID()
         let expected = generation
         cancellationRequested = false
-        events = []; destination = nil; assignedAt = nil; errorMessage = nil
+        events = []; destination = nil; assignedAt = nil; pickedUpAt = nil; errorMessage = nil
         isRestoring = true
         record(.finding)
         progression = Task { [weak self] in
@@ -124,6 +127,7 @@ final class DispatchDemoViewModel {
     private func restore(_ restored: RestoredSOS) {
         destination = restored.saved.destination
         assignedAt = restored.assignedAt
+        pickedUpAt = restored.pickedUpAt
         apply(status: restored.status)
         if restored.isActive { observeRequest() }
     }
@@ -136,11 +140,16 @@ final class DispatchDemoViewModel {
         case "assigned":
             assignedAt = requests.assignedAt ?? assignedAt
             next = .assigned
+        case "patient_arrived": next = .arrived
+        case "transporting":
+            pickedUpAt = requests.pickedUpAt ?? pickedUpAt
+            next = .transporting
+        case "hospital_arrived": next = .hospitalArrived
         case "completed": next = .completed
         case "cancelled": next = .cancelled
         default: return
         }
-        errorMessage = nil
+        errorMessage = next == .completed ? requests.summaryWarning : nil
         if stage != next { record(next) }
     }
 
@@ -160,7 +169,7 @@ final class DispatchDemoViewModel {
         events.append(Event(stage: next, date: now))
     }
     func cancel(now: Date = .now) {
-        guard isActive, !isCancelling, !isRestoring else { return }
+        guard isActive, ![.transporting, .hospitalArrived].contains(stage), !isCancelling, !isRestoring else { return }
         cancellationRequested = true
         if stage == .finding && destination == nil {
             progression?.cancel()

@@ -69,7 +69,7 @@ struct SavedDocumentView: View {
                 Text("Reviewed text saved with this document. Refer to the original for clinical details.")
                     .font(.caption).foregroundStyle(.secondary).padding()
             } else if let data = try? Data(contentsOf: url), PDFDocument(data: data) != nil { ScannedPDFView(data: data) }
-            else { ContentUnavailableView("Document unavailable", systemImage: "doc.badge.ellipsis", description: Text("Return to Records and retry opening this document.")) }
+            else { ContentUnavailableView("Document unavailable", systemImage: "doc.badge.ellipsis", description: Text("This PDF stays on the phone where it was added. Synced reviewed text and reminders are available on this phone.")) }
         }.navigationTitle(document.title).navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

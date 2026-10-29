@@ -7,5 +7,6 @@ struct AppAccount: Equatable {
     let role: Role
     let hospitalIDs: [String]
     enum Role: String { case patient, staff }
+    var usesHospitalWorkspace: Bool { role == .staff }
     var canManageQueues: Bool { role == .staff && isEmailVerified && !hospitalIDs.isEmpty }
 }

@@ -81,6 +81,15 @@ final class CoreDataWalkingSessionStore: WalkingSessionStoring {
         } catch { context.rollback(); throw error }
     }
 
+    func deleteSessions(for ownerID: String) async throws {
+        guard !ownerID.isEmpty else { throw WalkingSessionStorageError.invalidRecord }
+        try await prepareStore()
+        let request = NSFetchRequest<NSManagedObject>(entityName: "WalkingSessionRecord")
+        request.predicate = NSPredicate(format: "ownerID == %@", ownerID)
+        for record in try container.viewContext.fetch(request) { container.viewContext.delete(record) }
+        try container.viewContext.save()
+    }
+
     private func validate(_ session: WalkingSession) throws {
         guard session.endedAt != nil, !session.intervals.isEmpty,
               session.intervals.allSatisfy({ $0.durationSeconds.isFinite && $0.durationSeconds >= 0 }) else {

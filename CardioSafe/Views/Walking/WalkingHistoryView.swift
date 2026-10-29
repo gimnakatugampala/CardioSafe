@@ -18,7 +18,7 @@ struct WalkingHistoryView: View {
                         metric("Walking", value: viewModel.durationText(viewModel.completedSessions.reduce(0) { $0 + $1.walkingSeconds }))
                         metric("Resting", value: viewModel.durationText(viewModel.completedSessions.reduce(0) { $0 + $1.restingSeconds }))
                     }
-                    Label("Stored on this device", systemImage: "iphone")
+                    Label("Backup status is available in Profile → Account sync", systemImage: "icloud")
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(.vertical, 10)
             }

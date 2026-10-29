@@ -12,11 +12,27 @@
 		CAFE00000000000000000003 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = CAFE00000000000000000013 /* FirebaseCore */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		AA1100000000000000000006 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B15FE04F3081E803008120ED /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B15FE0563081E803008120ED;
+			remoteInfo = CardioSafe;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		AA1100000000000000000001 /* CardioSafeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = CardioSafeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B15FE0573081E803008120ED /* CardioSafe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CardioSafe.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		AA1100000000000000000002 /* CardioSafeTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = CardioSafeTests;
+			sourceTree = "<group>";
+		};
 		B15FE0593081E803008120ED /* CardioSafe */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = CardioSafe;
@@ -25,6 +41,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		AA1100000000000000000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B15FE0543081E803008120ED /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -42,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				B15FE0593081E803008120ED /* CardioSafe */,
+				AA1100000000000000000002 /* CardioSafeTests */,
 				B15FE0583081E803008120ED /* Products */,
 			);
 			sourceTree = "<group>";
@@ -50,6 +74,7 @@
 			isa = PBXGroup;
 			children = (
 				B15FE0573081E803008120ED /* CardioSafe.app */,
+				AA1100000000000000000001 /* CardioSafeTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -57,6 +82,27 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		AA1100000000000000000008 /* CardioSafeTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA1100000000000000000009 /* Build configuration list for PBXNativeTarget "CardioSafeTests" */;
+			buildPhases = (
+				AA1100000000000000000003 /* Sources */,
+				AA1100000000000000000004 /* Frameworks */,
+				AA1100000000000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AA1100000000000000000007 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				AA1100000000000000000002 /* CardioSafeTests */,
+			);
+			name = CardioSafeTests;
+			productName = CardioSafeTests;
+			productReference = AA1100000000000000000001 /* CardioSafeTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		B15FE0563081E803008120ED /* CardioSafe */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = B15FE0623081E803008120ED /* Build configuration list for PBXNativeTarget "CardioSafe" */;
@@ -114,12 +160,20 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+				AA1100000000000000000008 /* CardioSafeTests */,
 				B15FE0563081E803008120ED /* CardioSafe */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		AA1100000000000000000005 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B15FE0553081E803008120ED /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -130,6 +184,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		AA1100000000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B15FE0533081E803008120ED /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -139,7 +200,49 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		AA1100000000000000000007 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B15FE0563081E803008120ED /* CardioSafe */;
+			targetProxy = AA1100000000000000000006 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		AA110000000000000000000A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				PRODUCT_BUNDLE_IDENTIFIER = gimnak.CardioSafeTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CardioSafe.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CardioSafe";
+			};
+			name = Debug;
+		};
+		AA110000000000000000000B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				PRODUCT_BUNDLE_IDENTIFIER = gimnak.CardioSafeTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CardioSafe.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CardioSafe";
+			};
+			name = Release;
+		};
 		B15FE0603081E803008120ED /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -357,6 +460,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		AA1100000000000000000009 /* Build configuration list for PBXNativeTarget "CardioSafeTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA110000000000000000000A /* Debug */,
+				AA110000000000000000000B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		B15FE0523081E803008120ED /* Build configuration list for PBXProject "CardioSafe" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

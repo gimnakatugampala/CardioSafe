@@ -2,18 +2,26 @@ import SwiftUI
 
 struct StaffHospitalListView: View {
     let account: AppAccount
+    @Environment(FacilitySOSAlerts.self) private var alerts
     var body: some View {
         List(account.hospitalIDs, id: \.self) { id in
             Section(id == "demo-asiri-central" ? "Asiri Central Hospital" : id) {
+                Button { Task { await alerts.enable() } } label: {
+                    Label("Enable SOS alerts", systemImage: "bell.fill")
+                }
+                Text("New patient SOS requests trigger an alert through the live Firebase connection. Keep the facility app running during this demonstration; delivery while closed requires remote push setup.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                if let message = alerts.message { Text(message).font(.footnote).foregroundStyle(.secondary) }
                 NavigationLink { FacilityRequestsView(hospitalID: id) } label: { Label("SOS requests", systemImage: "sos.circle") }
                 NavigationLink { StaffDepartmentView(hospitalID: id, account: account) } label: { Label("Department queues", systemImage: "person.3") }
             }
         }
         .navigationTitle("Assigned hospitals").navigationBarTitleDisplayMode(.inline)
+
     }
 }
 
-private struct StaffDepartmentView: View {
+struct StaffDepartmentView: View {
     let hospitalID: String
     let account: AppAccount
     @State private var model = HospitalQueueViewModel()

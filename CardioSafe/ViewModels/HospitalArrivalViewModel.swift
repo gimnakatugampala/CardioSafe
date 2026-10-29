@@ -37,7 +37,7 @@ final class HospitalArrivalViewModel {
         }
     }
 
-    func enable(for place: ArrivalPlace) async {
+    func enable(for place: ArrivalPlace, exitFollowUp: Bool = false) async {
         guard !isBusy, place.isValid else { return }
         errorMessage = nil; message = nil
         access = service.access
@@ -61,7 +61,7 @@ final class HospitalArrivalViewModel {
         do {
             guard try await notifications.authorize() else { errorMessage = "Allow notifications in Settings to receive arrival reminders."; return }
             guard generation == expected else { return }
-            let new = HospitalArrivalReminder(id: UUID(), place: place, hasBeenOutside: false)
+            let new = HospitalArrivalReminder(id: UUID(), place: place, hasBeenOutside: false, exitFollowUp: exitFollowUp)
             try store.save(new)
             if let old = reminder { notifications.cancel(id: old.regionID) }
             reminder = new; isMonitoring = false
@@ -75,6 +75,7 @@ final class HospitalArrivalViewModel {
         guard let reminder else { return }
         service.stop()
         notifications.cancel(id: reminder.regionID)
+        notifications.cancel(id: reminder.regionID + ".exit")
         isMonitoring = false
         do {
             try store.save(nil)
@@ -92,19 +93,23 @@ final class HospitalArrivalViewModel {
         guard var saved = reminder else { return }
         switch event {
         case .started(let id) where id == saved.regionID:
-            isMonitoring = true; message = "Watching the 200 m arrival area."
+            isMonitoring = true; message = saved.arrivalNotified == true ? "Watching for your departure follow-up." : "Watching the 200 m arrival area."
         case .state(let id, let inside) where id == saved.regionID:
             if inside {
+                if saved.arrivalNotified == true { return }
                 if saved.hasBeenOutside { trigger(saved) }
                 else { message = "Already within the area. The reminder will notify after you leave and return." }
             } else {
+                if saved.arrivalNotified == true { trigger(saved, exiting: true); return }
                 saved.hasBeenOutside = true
                 persist(saved)
             }
         case .exited(let id) where id == saved.regionID:
+            if saved.arrivalNotified == true { trigger(saved, exiting: true); return }
             saved.hasBeenOutside = true
             persist(saved)
         case .entered(let id) where id == saved.regionID:
+            if saved.arrivalNotified == true { return }
             if saved.hasBeenOutside { trigger(saved) }
             else { message = "Already within the area. Leave and return to trigger the reminder." }
         case .failed(let id) where id == nil || id == saved.regionID:
@@ -117,21 +122,28 @@ final class HospitalArrivalViewModel {
         do { try store.save(saved); reminder = saved }
         catch { service.stop(); isMonitoring = false; errorMessage = "The arrival state couldn’t be saved. Enable the reminder again." }
     }
-    private func trigger(_ saved: HospitalArrivalReminder) {
+    private func trigger(_ saved: HospitalArrivalReminder, exiting: Bool = false) {
         guard !isBusy else { return }
         isBusy = true
         Task { [weak self] in
             guard let self else { return }
             defer { self.isBusy = false }
             do {
-                try await self.notifications.schedule(id: saved.regionID)
-                guard self.reminder?.id == saved.id else { self.notifications.cancel(id: saved.regionID); return }
+                if exiting { try await self.notifications.scheduleExit(id: saved.regionID + ".exit") }
+                else { try await self.notifications.schedule(id: saved.regionID) }
+                guard self.reminder?.id == saved.id else { self.notifications.cancel(id: saved.regionID + (exiting ? ".exit" : "")); return }
+                if !exiting, saved.exitFollowUp == true {
+                    var updated = saved; updated.arrivalNotified = true
+                    try self.store.save(updated); self.reminder = updated
+                    self.message = "Arrival notified. Watching for your departure follow-up."
+                    return
+                }
                 try self.store.save(nil)
                 self.service.stop(); self.reminder = nil; self.isMonitoring = false
-                self.errorMessage = nil; self.message = "Arrival notification scheduled. This one-time reminder is complete."
+                self.errorMessage = nil; self.message = exiting ? "Departure follow-up scheduled. Reminder complete." : "Arrival notification scheduled. This one-time reminder is complete."
             } catch {
                 guard self.reminder?.id == saved.id else { return }
-                self.notifications.cancel(id: saved.regionID)
+                self.notifications.cancel(id: saved.regionID + (exiting ? ".exit" : ""))
                 self.errorMessage = "The arrival notification couldn’t be scheduled. Check notification settings."
             }
         }

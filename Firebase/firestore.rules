@@ -2,6 +2,15 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
+    function accountActive() {
+      return !exists(/databases/$(database)/documents/users/$(request.auth.uid)/deletion/status);
+    }
+    function recentOwner(userID) {
+      return signedIn() && request.auth.uid == userID
+        && request.auth.token.auth_time is int
+        && request.auth.token.auth_time <= request.time.toMillis() / 1000
+        && request.time.toMillis() / 1000 - request.auth.token.auth_time < 300;
+    }
     function assignedStaff(hospitalID) {
       return signedIn()
         && request.auth.token.email_verified == true
@@ -15,7 +24,7 @@ service cloud.firestore {
       match /sosRequests/{requestID} {
         function owner() { return signedIn() && resource.data.patientID == request.auth.uid; }
         allow read: if owner() || assignedStaff(hospitalID);
-        allow create: if signedIn()
+        allow create: if signedIn() && accountActive()
           && hospitalID == 'demo-asiri-central'
           && request.resource.data.keys().hasOnly(['patientID', 'status', 'isSimulation', 'createdAt', 'updatedAt', 'updatedBy'])
           && request.resource.data.patientID == request.auth.uid
@@ -24,24 +33,29 @@ service cloud.firestore {
           && request.resource.data.createdAt == request.time
           && request.resource.data.updatedAt == request.time
           && request.resource.data.updatedBy == request.auth.uid;
+        function staffTransition(from, to, timeField) {
+          return assignedStaff(hospitalID)
+            && resource.data.status == from && request.resource.data.status == to
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'updatedBy', timeField])
+            && request.resource.data[timeField] == request.time;
+        }
         allow update: if signedIn()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'updatedBy', 'assignedAt', 'completedAt'])
           && resource.data.isSimulation == true
           && request.resource.data.updatedAt == request.time
           && request.resource.data.updatedBy == request.auth.uid
-          && ((!request.resource.data.diff(resource.data).affectedKeys().hasAny(['assignedAt']))
-            || (assignedStaff(hospitalID) && resource.data.status == 'accepted'
-              && request.resource.data.status == 'assigned' && request.resource.data.assignedAt == request.time))
-          && ((!request.resource.data.diff(resource.data).affectedKeys().hasAny(['completedAt']))
-            || (assignedStaff(hospitalID) && resource.data.status == 'assigned'
-              && request.resource.data.status == 'completed' && request.resource.data.completedAt == request.time))
-          && ((owner() && resource.data.status in ['pending', 'accepted', 'assigned'] && request.resource.data.status == 'cancelled')
-            || (assignedStaff(hospitalID) && resource.data.status == 'pending' && request.resource.data.status == 'accepted')
-            || (assignedStaff(hospitalID) && resource.data.status == 'accepted'
-              && request.resource.data.status == 'assigned' && request.resource.data.assignedAt == request.time)
-            || (assignedStaff(hospitalID) && resource.data.status == 'assigned'
-              && request.resource.data.status == 'completed' && request.resource.data.completedAt == request.time
-              && request.time >= resource.data.assignedAt + duration.value(90, 's')));
+          && ((owner() && resource.data.status in ['pending', 'accepted', 'assigned', 'patient_arrived']
+              && request.resource.data.status == 'cancelled'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'updatedBy']))
+            || (assignedStaff(hospitalID) && resource.data.status == 'pending'
+              && request.resource.data.status == 'accepted'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'updatedBy']))
+            || staffTransition('accepted', 'assigned', 'assignedAt')
+            || (staffTransition('assigned', 'patient_arrived', 'patientArrivedAt')
+              && request.time >= resource.data.assignedAt + duration.value(90, 's'))
+            || staffTransition('patient_arrived', 'transporting', 'pickedUpAt')
+            || (staffTransition('transporting', 'hospital_arrived', 'hospitalArrivedAt')
+              && request.time >= resource.data.pickedUpAt + duration.value(90, 's'))
+            || staffTransition('hospital_arrived', 'completed', 'completedAt'));
         allow delete: if false;
       }
       match /departments/{departmentID} {
@@ -55,6 +69,49 @@ service cloud.firestore {
           && request.resource.data.updatedBy == request.auth.uid;
         allow create, delete: if false;
       }
+    }
+    match /users/{userID}/deletion/status {
+      allow read: if signedIn() && request.auth.uid == userID;
+      allow create: if recentOwner(userID)
+        && request.resource.data.keys().hasOnly(['startedAt'])
+        && request.resource.data.startedAt == request.time;
+      allow update, delete: if false;
+    }
+    match /users/{userID}/activeSOS/current {
+      allow read: if signedIn() && request.auth.uid == userID;
+      allow create, update: if signedIn() && request.auth.uid == userID && accountActive()
+        && request.resource.data.keys().hasOnly(['payload', 'updatedAt'])
+        && request.resource.data.payload is bytes && request.resource.data.payload.size() <= 100000
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if recentOwner(userID);
+    }
+    match /users/{userID}/records/{recordID} {
+      function ownsBackup() { return signedIn() && request.auth.uid == userID; }
+      allow read: if ownsBackup();
+      allow create, update: if ownsBackup() && accountActive()
+        && request.resource.data.keys().hasOnly(['kind', 'key', 'version', 'parts', 'deleted', 'updatedAt'])
+        && request.resource.data.kind in ['profile', 'walk', 'document', 'reminder', 'activeSOS', 'sosSummary']
+        && request.resource.data.key is string && request.resource.data.key.matches('[A-Za-z0-9-]{1,128}')
+        && recordID == request.resource.data.kind + '_' + request.resource.data.key
+        && request.resource.data.version is string && request.resource.data.version.matches('[A-Fa-f0-9-]{36}')
+        && request.resource.data.parts is int && request.resource.data.parts >= 0 && request.resource.data.parts <= 64
+        && request.resource.data.deleted is bool
+        && ((request.resource.data.deleted && request.resource.data.parts == 0)
+          || (!request.resource.data.deleted && request.resource.data.parts > 0))
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if recentOwner(userID);
+    }
+    match /users/{userID}/recordChunks/{chunkID} {
+      function validChunk() {
+        return request.resource.data.keys().hasOnly(['bytes', 'version'])
+          && request.resource.data.bytes is bytes && request.resource.data.bytes.size() <= 450000
+          && request.resource.data.version is string && request.resource.data.version.matches('[A-Fa-f0-9-]{36}')
+          && chunkID.matches(request.resource.data.version + '_[0-9]{1,2}');
+      }
+      allow read: if signedIn() && request.auth.uid == userID;
+      allow create: if signedIn() && request.auth.uid == userID && accountActive() && validChunk();
+      allow update: if signedIn() && request.auth.uid == userID && accountActive() && request.resource.data == resource.data;
+      allow delete: if recentOwner(userID);
     }
     match /{document=**} { allow read, write: if false; }
   }

@@ -26,7 +26,8 @@ final class DashboardViewModel {
     private(set) var healthRefreshedAt: Date?
     @ObservationIgnored private let healthService: (any DashboardHealthProviding)?
     @ObservationIgnored private let planStore: any WalkingPlanStoring
-    @ObservationIgnored private let ownerID: String
+    private(set) var ownerID: String
+    @ObservationIgnored private var planGeneration = UUID()
 
     init(snapshot: DashboardSnapshot, planStore: any WalkingPlanStoring, ownerID: String, healthService: (any DashboardHealthProviding)? = nil) {
         self.healthService = healthService
@@ -91,25 +92,52 @@ final class DashboardViewModel {
         }
     }
 
+    func useAccount(_ newOwner: String) async {
+        if ownerID != newOwner {
+            ownerID = newOwner
+            planGeneration = UUID()
+            snapshot.walkingPlan = nil
+            hasLoadedPlan = false
+            isLoadingPlan = false
+            isSavingPlan = false
+            planLoadError = nil
+        }
+        await loadWalkingPlan()
+    }
+
+    func refreshSyncedWalkingPlan(for owner: String) async {
+        guard ownerID == owner, !isLoadingPlan, !isSavingPlan else { return }
+        hasLoadedPlan = false
+        await loadWalkingPlan()
+    }
+
     func loadWalkingPlan() async {
         guard !hasLoadedPlan, !isLoadingPlan, !isSavingPlan else { return }
+        let expected = planGeneration
+        let owner = ownerID
         isLoadingPlan = true
         planLoadError = nil
-        defer { isLoadingPlan = false }
+        defer { if planGeneration == expected { isLoadingPlan = false } }
         do {
-            snapshot.walkingPlan = try await planStore.loadPlan(for: ownerID)
+            let plan = try await planStore.loadPlan(for: owner)
+            guard planGeneration == expected, !Task.isCancelled else { return }
+            snapshot.walkingPlan = plan
             hasLoadedPlan = true
         } catch {
+            guard planGeneration == expected, !Task.isCancelled else { return }
             planLoadError = "Your saved walking plan could not be loaded. Retry before making changes."
         }
     }
 
-    func saveWalkingPlan(_ plan: WalkingPlan) async throws {
+    func saveWalkingPlan(_ plan: WalkingPlan, for expectedOwner: String) async throws {
+        guard ownerID == expectedOwner else { throw WalkingPlanStorageError.accountChanged }
         guard hasLoadedPlan else { throw WalkingPlanStorageError.planNotLoaded }
         guard !isSavingPlan else { throw WalkingPlanStorageError.saveInProgress }
+        let expected = planGeneration
         isSavingPlan = true
-        defer { isSavingPlan = false }
-        try await planStore.savePlan(plan, for: ownerID)
+        defer { if planGeneration == expected { isSavingPlan = false } }
+        try await planStore.savePlan(plan, for: expectedOwner)
+        guard planGeneration == expected else { throw WalkingPlanStorageError.accountChanged }
         snapshot.walkingPlan = plan
     }
 

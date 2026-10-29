@@ -6,18 +6,25 @@ struct AppSettingsView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.colorScheme) private var scheme
     @State private var settingsError = false
+    @State private var appearanceError: String?
     @State private var showingIntroduction = false
 
     var body: some View {
         Form {
             Section {
-                Picker("Appearance", selection: $appearance) {
+                Picker("Appearance", selection: Binding(get: { appearance }, set: { value in
+                    do {
+                        try AccountAppearanceStore().save(value, owner: AccountDataScope.ownerID)
+                        appearance = value; appearanceError = nil
+                    } catch { appearanceError = "Appearance could not be saved. Please retry." }
+                })) {
                     Label("System", systemImage: "circle.lefthalf.filled").tag("system")
                     Label("Light", systemImage: "sun.max").tag("light")
                     Label("Dark", systemImage: "moon").tag("dark")
                 }
+                if let appearanceError { Text(appearanceError).font(.caption).foregroundStyle(.red) }
             } header: { Text("Display") } footer: {
-                Text("System follows your iPhone’s appearance. Your choice is saved on this device.")
+                Text("System follows your iPhone’s appearance. Patient accounts sync this choice across devices; guest choices stay on this device.")
             }
             Section {
                 Toggle(isOn: Binding(get: { appLock.isEnabled }, set: { enabled in
@@ -49,9 +56,12 @@ struct AppSettingsView: View {
                     Label("Walking reminders", systemImage: "bell.badge")
                 }
             }
+            Section {
+                NavigationLink("Voice & Siri") { WalkingVoiceControlsView() }
+            }
             Section("Your data") {
-                Label("Walking records stay on this device", systemImage: "iphone")
-                Text("Saved sessions include walking time, rest breaks, recorded routes and available health readings. Signing in does not upload or sync these records.")
+                Label("Walking records sync with your account", systemImage: "iphone")
+                Text("Saved sessions include walking time, rest breaks, recorded routes and available health readings. Signed-in patient accounts back these records up privately to Firebase. PDFs remain local.")
                     .font(.subheadline).foregroundStyle(.secondary)
                 Label("Hospital queues use Firebase", systemImage: "building.2")
                 Text("Your account provides access to published department counts. Demonstration queues are labelled in Care Finder.")

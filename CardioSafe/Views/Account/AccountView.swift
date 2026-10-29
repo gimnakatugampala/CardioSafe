@@ -21,11 +21,16 @@ struct AccountView: View {
                 }.padding(.vertical, 10)
             }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
             if let account = model.account {
+                if account.role == .patient {
+                    Section {
+                        NavigationLink { AccountSyncView() } label: { Label("Account sync", systemImage: "icloud") }
+                    }
+                }
                 Section {
                     NavigationLink { PatientProfileView(accountID: account.id).id(account.id) } label: {
                         Label("My details", systemImage: "person.text.rectangle")
                     }
-                    Text("Personal details and emergency contact · Stored on this device")
+                    Text("Personal details and emergency contact · Synced to your account")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section {
@@ -47,6 +52,9 @@ struct AccountView: View {
                     }
                 } else if account.role == .staff {
                     Section { Text("Staff access requires a verified email and a hospital assignment.").font(.subheadline) }
+                }
+                if account.role == .patient {
+                    Section { NavigationLink("Account & data controls") { AccountDataControlsView() } }
                 }
                 Section {
                     Button("Sign out", role: .destructive) { model.signOut() }
@@ -119,6 +127,7 @@ struct AccountSignInView: View {
     @State private var confirmPassword = ""
     @State private var registering = false
     @State private var submitted = false
+    @State private var showingPasswordRecovery = false
     @Namespace private var accountTabAnimation
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
@@ -189,6 +198,10 @@ struct AccountSignInView: View {
                             }
                         }
                     }
+                    if !registering {
+                        Button("Forgot password?") { focusedField = nil; showingPasswordRecovery = true }
+                            .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
+                    }
                     if submitted, let error = model.errorMessage {
                         Label(error, systemImage: "exclamationmark.circle.fill")
                             .font(.subheadline).foregroundStyle(CardioSafeTheme.alert)
@@ -225,6 +238,7 @@ struct AccountSignInView: View {
             .interactiveDismissDisabled(model.isBusy)
             .onChange(of: registering) { _, _ in clearPasswords(); submitted = false; focusedField = nil }
             .onDisappear { clearPasswords() }
+            .sheet(isPresented: $showingPasswordRecovery) { PasswordRecoveryView(email: email) }
         }.tint(CardioSafeTheme.accent(for: scheme))
     }
 
