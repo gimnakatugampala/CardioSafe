@@ -5,6 +5,7 @@ struct DashboardView: View {
     let viewModel: DashboardViewModel
     let sessionViewModel: WalkingSessionViewModel
     let onSelectTab: (AppTab) -> Void
+    /// Kept so ContentView still compiles; the header SOS button is now the single emergency entry point.
     let onEmergency: () -> Void
     let onEmergencyContacts: () -> Void
 
@@ -20,30 +21,36 @@ struct DashboardView: View {
     // Used only on the navy hero, where the lighter cyan is readable.
     private let heroAccent = Color(red: 0.31, green: 0.79, blue: 0.86)
 
+    private var greeting: String {
+        switch Calendar.current.component(.hour, from: .now) {
+        case 5..<12: "Good morning"
+        case 12..<17: "Good afternoon"
+        case 17..<22: "Good evening"
+        default: "Hello"
+        }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                recoveryOverview
+                hero
                 NavigationLink { HealthHistoryView() } label: {
                     HStack {
                         Label("Health history", systemImage: "chart.bar.xaxis")
                         Spacer()
-                        Text("7 days").font(.caption).foregroundStyle(.secondary)
+                        Text("Last 7 days").font(.caption).foregroundStyle(.secondary)
                         Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
                     }
                     .font(.subheadline.weight(.semibold)).padding(16)
                     .background(surface, in: RoundedRectangle(cornerRadius: 16))
                 }
                 .buttonStyle(.plain)
-                walkingCompanion
+                .padding(.top, 8)
+                walkingCard
                 careShortcuts
-                guardian
-                Label("Saved walks can sync with your account", systemImage: "lock.shield")
-                    .font(.caption2).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity).padding(.bottom, 12)
             }
             .frame(maxWidth: 900, alignment: .leading)
-            .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 20)
+            .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 24)
             .frame(maxWidth: .infinity)
         }
         .foregroundStyle(ink)
@@ -62,11 +69,11 @@ struct DashboardView: View {
 
     // MARK: Hero
 
-    private var recoveryOverview: some View {
+    private var hero: some View {
         VStack(spacing: -20) {
             VStack(alignment: .leading, spacing: 22) {
                 ViewThatFits(in: .horizontal) {
-                    dashboardHeader
+                    heroHeader
                     VStack(alignment: .leading, spacing: 12) {
                         Text("CardioSafe").font(.headline)
                             .fixedSize(horizontal: false, vertical: true)
@@ -78,7 +85,7 @@ struct DashboardView: View {
                         Text(Date.now, format: .dateTime.weekday(.wide).day().month(.wide))
                             .font(.subheadline).foregroundStyle(.white.opacity(0.7))
                     }
-                    Text("Your recovery").font(.title.bold())
+                    Text(greeting).font(.title.bold())
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityAddTraits(.isHeader)
                 }
@@ -87,11 +94,11 @@ struct DashboardView: View {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(CardioSafeTheme.navy, in: RoundedRectangle(cornerRadius: 24))
-            healthSummary.padding(.horizontal, 12)
+            healthCard.padding(.horizontal, 12)
         }
     }
 
-    private var dashboardHeader: some View {
+    private var heroHeader: some View {
         HStack(spacing: 9) {
             RecoveryMark()
                 .stroke(heroAccent, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
@@ -105,12 +112,14 @@ struct DashboardView: View {
     private var headerActions: some View {
         HStack(spacing: 12) {
             Button(action: onEmergencyContacts) {
-                Text("SOS").font(.caption.bold())
-                    .frame(minWidth: 44, minHeight: 44)
-                    .foregroundStyle(Color(red: 1, green: 0.72, blue: 0.74))
-                    .background(.white.opacity(0.1), in: Circle())
+                Text("SOS").font(.subheadline.bold())
+                    .frame(minWidth: 48, minHeight: 48)
+                    .foregroundStyle(.white)
+                    .background(CardioSafeTheme.alert, in: Circle())
             }
-            .buttonStyle(.plain).accessibilityLabel("Emergency Help")
+            .buttonStyle(.plain)
+            .accessibilityLabel("Emergency")
+            .accessibilityHint("Call 1990 or request a demo ambulance")
             Button { onSelectTab(.profile) } label: {
                 Image(systemName: "person.crop.circle")
                     .font(.title2).foregroundStyle(.white.opacity(0.85))
@@ -122,7 +131,7 @@ struct DashboardView: View {
 
     // MARK: Health
 
-    private var healthSummary: some View {
+    private var healthCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             if typeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: 18) {
@@ -141,14 +150,16 @@ struct DashboardView: View {
             Divider()
             HStack(spacing: 7) {
                 Image(systemName: "heart.fill").foregroundStyle(CardioSafeTheme.alert).accessibilityHidden(true)
-                Text(viewModel.snapshot.healthReadings.isEmpty
-                     ? "No readable Health samples"
-                     : "Apple Health · today’s activity and latest heart rate")
+                Text(viewModel.snapshot.healthReadings.isEmpty ? "No Health data yet" : "From Apple Health")
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
                 if viewModel.isRefreshingHealth { ProgressView().controlSize(.mini) }
             }
             .font(.caption)
+            if viewModel.snapshot.healthReadings.isEmpty, viewModel.hasRequestedHealthAccess, viewModel.healthError == nil {
+                Text("If you allowed access, make sure your iPhone or watch has recorded something today.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if let error = viewModel.healthError {
                 Text(error).font(.caption).foregroundStyle(.secondary)
             }
@@ -156,7 +167,7 @@ struct DashboardView: View {
                 Task { await viewModel.connectHealth() }
             } label: {
                 Text(viewModel.isConnectingHealth ? "Opening Apple Health…"
-                     : (viewModel.hasRequestedHealthAccess ? "Request Health access" : "Connect Apple Health"))
+                     : (viewModel.hasRequestedHealthAccess ? "Health permissions" : "Connect Apple Health"))
                     .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
             }
             .disabled(viewModel.isConnectingHealth || viewModel.isSeedingHealth)
@@ -170,7 +181,7 @@ struct DashboardView: View {
                 }
                 .disabled(viewModel.isSeedingHealth || viewModel.isConnectingHealth)
                 Text(viewModel.sampleDataMessage
-                     ?? "Simulator only: writes sample steps, distance, heart rate and energy to HealthKit, then reads them back.")
+                     ?? "Simulator only. Adds test steps, distance and heart rate, then reads them back.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -195,21 +206,21 @@ struct DashboardView: View {
 
     // MARK: Walking
 
-    private var walkingCompanion: some View {
+    private var walkingCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Walking").font(.headline)
                 .accessibilityAddTraits(.isHeader)
             VStack(spacing: 0) {
                 Button { showingWalkingMap = true } label: {
-                    HomeMapPreview().frame(height: 180)
+                    HomeMapPreview().frame(height: 170)
                         .overlay(alignment: .bottomTrailing) {
-                            Label("Explore map", systemImage: "arrow.up.left.and.arrow.down.right")
+                            Label("Open map", systemImage: "arrow.up.left.and.arrow.down.right")
                                 .font(.caption.weight(.semibold)).padding(10)
                                 .background(.regularMaterial, in: Capsule()).padding(12)
                         }
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Explore hospitals, parks and walking routes on the map")
+                .accessibilityLabel("Open the map to find hospitals, parks and walking routes")
                 Divider()
                 Button {
                     if sessionViewModel.isActive || sessionViewModel.start(plan: viewModel.snapshot.walkingPlan) {
@@ -225,7 +236,7 @@ struct DashboardView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(sessionViewModel.isActive ? "Return to walk" : "Start walking")
                                 .font(.subheadline.bold())
-                            Text(sessionViewModel.isActive ? "Your session is still running" : viewModel.walkingStatus)
+                            Text(sessionViewModel.isActive ? "Session in progress" : viewModel.walkingStatus)
                                 .font(.caption).foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -275,32 +286,9 @@ struct DashboardView: View {
         }
         .buttonStyle(.plain)
     }
-
-    // MARK: Guardian
-
-    private var guardian: some View {
-        Button(action: onEmergency) {
-            HStack(alignment: .center, spacing: 12) {
-                Image(systemName: "shield.lefthalf.filled")
-                    .font(.title3).foregroundStyle(themeAccent).accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("CardioSafe Guardian").font(.subheadline.bold())
-                    Text("Hospital and ambulance dispatch demo · No real dispatch")
-                        .font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-            }
-            .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-            .background(CardioSafeTheme.teal.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(CardioSafeTheme.teal.opacity(0.12)))
-        }
-        .buttonStyle(.plain)
-    }
 }
 
-// MARK: Map preview (unchanged behaviour)
+// MARK: Map preview
 
 private struct HomeMapPreview: View {
     private let region = MKCoordinateRegion(
@@ -312,17 +300,6 @@ private struct HomeMapPreview: View {
         Map(initialPosition: .region(region), interactionModes: [])
             .mapStyle(.standard(pointsOfInterest: .excludingAll))
             .allowsHitTesting(false)
-            .overlay(alignment: .topLeading) {
-                Label("Colombo · Map preview", systemImage: "map")
-                    .font(.caption2.weight(.semibold)).padding(.horizontal, 10).padding(.vertical, 8)
-                    .background(.regularMaterial, in: Capsule()).padding(12)
-            }
-            .overlay(alignment: .topTrailing) {
-                Image(systemName: "location.slash")
-                    .font(.caption2).padding(9)
-                    .background(.regularMaterial, in: Circle()).padding(12)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Map preview of Colombo. Your location and walking route are not connected.")
+            .accessibilityHidden(true)
     }
 }

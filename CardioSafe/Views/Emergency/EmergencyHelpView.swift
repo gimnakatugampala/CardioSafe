@@ -20,13 +20,13 @@ struct EmergencyHelpView: View {
         }
         .safeAreaInset(edge: .bottom) {
             Button { showingEmergencyContacts = true } label: {
-                Label("Emergency contact & location", systemImage: "phone.fill")
+                Label("Call 1990 & location", systemImage: "phone.fill")
                     .font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 48)
             }
             .buttonStyle(.bordered).padding(.horizontal).padding(.vertical, 8)
             .background(.regularMaterial)
         }
-        .sheet(isPresented: $showingEmergencyContacts) { EmergencyContactView() }
+        .sheet(isPresented: $showingEmergencyContacts) { EmergencyContactView(showsAmbulanceRequest: false) }
     }
 
     private var requestBody: some View {
@@ -84,7 +84,7 @@ struct EmergencyHelpView: View {
                             .background(CardioSafeTheme.alert, in: RoundedRectangle(cornerRadius: 18))
                     }
                     if let error = model.errorMessage, model.stage != .failed { Text(error).font(.subheadline).foregroundStyle(.orange) }
-                    Text("For a real emergency, contact local emergency services using your phone.")
+                    Text("For a real emergency, call 1990 or your local emergency number using your phone.")
                         .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
                     DisclosureGroup("Request details", isExpanded: $showingDetails) {
                         VStack(alignment: .leading, spacing: 14) {
@@ -108,15 +108,17 @@ struct EmergencyHelpView: View {
                 }.padding(24).frame(maxWidth: 540).frame(maxWidth: .infinity)
             }
             .background(CardioSafeTheme.background(for: scheme))
-            .navigationTitle("Emergency support").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Ambulance request").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Close") { dismiss() } } }
             .tint(accent)
-            .onAppear { if model.stage == .ready || model.isActive { model.start() } }
+            // Only reconnect to a request that is already active. A new request needs an explicit tap.
+            .onAppear { if model.isActive { model.start() } }
         }
     }
+
     private var statusTitle: String {
         switch model.stage {
-        case .ready: "Try emergency support"
+        case .ready: "Request an ambulance"
         case .finding: "Finding a nearby hospital…"
         case .failed: "Couldn’t check hospitals"
         case .reviewing: "Waiting for hospital…"
@@ -132,7 +134,7 @@ struct EmergencyHelpView: View {
     }
     private var statusDetail: String {
         switch model.stage {
-        case .ready: "One tap to see how an SOS request would work."
+        case .ready: "Tap Start SOS to send a simulated request to a demo hospital."
         case .finding: "We’re checking nearby hospitals and connected queue information."
         case .failed: model.errorMessage ?? "No request was sent. Try again."
         case .reviewing: "Waiting for hospital staff to accept your request."

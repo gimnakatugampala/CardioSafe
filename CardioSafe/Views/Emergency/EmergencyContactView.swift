@@ -2,11 +2,20 @@ import SwiftUI
 import CoreLocation
 
 struct EmergencyContactView: View {
+    /// Hidden when this screen is opened from inside the ambulance screen itself.
+    var showsAmbulanceRequest = true
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(DispatchDemoViewModel.self) private var dispatch
     @State private var location = WalkingLocationViewModel()
     @State private var confirmingCall = false
     @State private var callMessage: String?
+    @State private var countdown: Int?
+    @State private var countdownTask: Task<Void, Never>?
+    @State private var showingRequest = false
+
+    private let countdownSeconds = 5
 
     var body: some View {
         NavigationStack {
@@ -28,6 +37,9 @@ struct EmergencyContactView: View {
                     #endif
                     Link("Service information", destination: URL(string: "https://www.1990.lk/faquestions/how-can-i-request-for-an-ambulance/")!)
                 }
+
+                if showsAmbulanceRequest { ambulanceSection }
+
                 Section("Your location") {
                     TimelineView(.periodic(from: .now, by: 10)) { context in
                         if let fix = location.location,
@@ -60,7 +72,7 @@ struct EmergencyContactView: View {
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }
-            .navigationTitle("Emergency contacts")
+            .navigationTitle("Emergency")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .confirmationDialog("Call 1990 Suwa Seriya?", isPresented: $confirmingCall, titleVisibility: .visible) {
@@ -79,7 +91,75 @@ struct EmergencyContactView: View {
             } message: {
                 Text("This call action is separate from the CardioSafe hospital and ambulance simulation.")
             }
-            .onDisappear { location.stop() }
+            .fullScreenCover(isPresented: $showingRequest) { EmergencyHelpView() }
+            .onAppear { location.start() }
+            .onDisappear {
+                location.stop()
+                cancelCountdown()
+            }
         }
+    }
+
+    // MARK: Ambulance request
+
+    private var ambulanceSection: some View {
+        Section {
+            if let countdown {
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Sending request in \(countdown)…", systemImage: "timer")
+                        .font(.headline)
+                        .accessibilityAddTraits(.updatesFrequently)
+                    Text("Tap Cancel to stop. Nothing has been sent yet.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                    Button(role: .cancel) { cancelCountdown() } label: {
+                        Text("Cancel").font(.headline).frame(maxWidth: .infinity, minHeight: 48)
+                    }
+                    .buttonStyle(.borderedProminent).tint(.gray)
+                }
+            } else if dispatch.isActive {
+                Button {
+                    dispatch.start()
+                    showingRequest = true
+                } label: {
+                    Label("Open active SOS request", systemImage: "cross.case.fill")
+                        .font(.headline).frame(maxWidth: .infinity, minHeight: 50)
+                }
+                .buttonStyle(.borderedProminent).tint(CardioSafeTheme.alert)
+            } else {
+                Button { beginCountdown() } label: {
+                    Label("Request ambulance (demo)", systemImage: "sos.circle.fill")
+                        .font(.headline).frame(maxWidth: .infinity, minHeight: 50)
+                }
+                .buttonStyle(.bordered).tint(CardioSafeTheme.alert)
+                .disabled(dispatch.isRestoring)
+            }
+        } header: {
+            Text("Ambulance request (demo)")
+        } footer: {
+            Text("Sends a simulated request to a demo hospital. No real ambulance is sent. In a real emergency, call 1990.")
+        }
+    }
+
+    private func beginCountdown() {
+        guard countdownTask == nil else { return }
+        countdown = countdownSeconds
+        countdownTask = Task {
+            var remaining = countdownSeconds
+            while remaining > 0 {
+                do { try await Task.sleep(for: .seconds(1)) } catch { return }
+                remaining -= 1
+                countdown = remaining
+            }
+            countdown = nil
+            countdownTask = nil
+            dispatch.start()
+            showingRequest = true
+        }
+    }
+
+    private func cancelCountdown() {
+        countdownTask?.cancel()
+        countdownTask = nil
+        countdown = nil
     }
 }
