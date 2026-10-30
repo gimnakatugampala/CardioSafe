@@ -5,6 +5,9 @@ struct WalkingLiveMapView: View {
     let sessionViewModel: WalkingSessionViewModel
     private var destinationModel: WalkingDestinationViewModel { sessionViewModel.destinationModel }
     private var locationModel: WalkingLocationViewModel { sessionViewModel.locationModel }
+    private var simulator: WalkingJourneySimulator { sessionViewModel.journeySimulator }
+    /// Simulated patient position in simulator builds, otherwise the real GPS fix.
+    private var currentLocation: CLLocation? { sessionViewModel.currentLocation }
     @State private var camera: MapCameraPosition = .userLocation(followsHeading: false, fallback: .region(
         MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 6.9271, longitude: 79.8612),
                            span: MKCoordinateSpan(latitudeDelta: 0.015, longitudeDelta: 0.015))))
@@ -23,7 +26,7 @@ struct WalkingLiveMapView: View {
             visibleRegion = context.region
             if camera.positionedByUser { followsPatient = false }
         }
-        .onChange(of: locationModel.location) { previous, location in
+        .onChange(of: currentLocation) { previous, location in
             guard followsPatient, let location else { return }
             if previous == nil {
                 if !layers.enabled.isEmpty { refreshLayers() }
@@ -38,8 +41,8 @@ struct WalkingLiveMapView: View {
             VStack(spacing: 10) {
             Button {
                 followsPatient = true
-                locationModel.start()
-                if let location = locationModel.location {
+                if !sessionViewModel.isSimulatingJourney { locationModel.start() }
+                if let location = currentLocation {
                     withAnimation(reduceMotion ? nil : .default) { camera = .region(MKCoordinateRegion(center: location.coordinate,
                                                      latitudinalMeters: 650, longitudinalMeters: 650)) }
                 }
@@ -98,7 +101,7 @@ struct WalkingLiveMapView: View {
         .onDisappear { layers.cancel() }
         .confirmationDialog("Allow community routing for this walk?", isPresented: $showingCommunityConsent, titleVisibility: .visible) {
             Button("Allow for this walk") {
-                Task { await destinationModel.allowCommunityRouting(from: locationModel.location) }
+                Task { await destinationModel.allowCommunityRouting(from: currentLocation) }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -114,11 +117,13 @@ struct WalkingLiveMapView: View {
         .overlay(alignment: .topLeading) {
             if destinationModel.destination != nil {
                 destinationCard.padding(.leading, 20).padding(.trailing, 88).padding(.top, 110)
+            } else if sessionViewModel.isSimulatingJourney {
+                journeyCard.padding(.leading, 20).padding(.trailing, 88).padding(.top, 110)
             } else if let error = locationModel.errorMessage {
                 Label(locationModel.location == nil ? error + " Map preview is not your current position." : error, systemImage: "location.slash")
                     .font(.caption).padding(12).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
                     .padding(.horizontal, 20).padding(.top, 110)
-            } else if locationModel.location == nil {
+            } else if currentLocation == nil {
                 Text("Waiting for location · Map preview")
                     .font(.caption).padding(10).background(.regularMaterial, in: Capsule())
                     .padding(.horizontal, 20).padding(.top, 110)
@@ -145,14 +150,24 @@ struct WalkingLiveMapView: View {
                 Marker("Destination: " + destination.name, systemImage: "flag.checkered", coordinate: destination.coordinate)
                     .tint(.purple)
             }
+            if sessionViewModel.isSimulatingJourney, simulator.pathCoordinates.count > 1 {
+                MapPolyline(coordinates: simulator.pathCoordinates)
+                    .stroke(.orange.opacity(0.8), style: StrokeStyle(lineWidth: 5, lineCap: .round, dash: [2, 8]))
+                if let start = simulator.startCoordinate {
+                    Marker("Journey start", systemImage: "figure.walk", coordinate: start).tint(.green)
+                }
+                if let end = simulator.endCoordinate {
+                    Marker("Journey end", systemImage: "flag.fill", coordinate: end).tint(.orange)
+                }
+            }
             ForEach(Array((sessionViewModel.session?.routeSegments ?? []).enumerated()), id: \.offset) { _, segment in
                 if segment.points.count > 1 {
                     MapPolyline(coordinates: segment.points.map(\.coordinate))
                         .stroke(CardioSafeTheme.teal, style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
                 }
             }
-            if let location = locationModel.location {
-                Annotation("Your location", coordinate: location.coordinate) {
+            if let location = currentLocation {
+                Annotation(sessionViewModel.isSimulatingJourney ? "Simulated patient" : "Your location", coordinate: location.coordinate) {
                     ZStack {
                         Circle().fill(.blue.opacity(0.15)).frame(width: 62, height: 62)
                         Circle().fill(.blue).frame(width: 20, height: 20)
@@ -163,6 +178,18 @@ struct WalkingLiveMapView: View {
                 }
                 .annotationTitles(.hidden)
             }
+    }
+
+    private var journeyCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(simulator.routeName, systemImage: "figure.walk.motion").font(.subheadline.bold()).lineLimit(2)
+            ProgressView(value: simulator.progress)
+            Text(simulator.summary).font(.caption.weight(.semibold))
+            if let status = simulator.statusMessage { Text(status).font(.caption2).foregroundStyle(.secondary) }
+            Text("Simulated data · Simulator only").font(.caption2).foregroundStyle(.secondary)
+        }
+        .padding(12).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .accessibilityElement(children: .combine)
     }
 
     private var destinationCard: some View {
@@ -198,23 +225,23 @@ struct WalkingLiveMapView: View {
                 if destinationModel.requiresCommunityConsent {
                     Button("Use OpenStreetMap route") { showingCommunityConsent = true }.frame(minHeight: 44)
                 } else {
-                    Button("Retry route") { Task { await destinationModel.retry(from: locationModel.location) } }.frame(minHeight: 44)
+                    Button("Retry route") { Task { await destinationModel.retry(from: currentLocation) } }.frame(minHeight: 44)
                 }
             }
         }.padding(12).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
     private func chooseRestStop(_ place: MapPlace) {
         sessionViewModel.restStop.select(place)
-        if let location = locationModel.location { sessionViewModel.restStop.update(location) }
+        if let location = currentLocation { sessionViewModel.restStop.update(location) }
         selectedPlace = nil; showingNearby = false
     }
     private func chooseDestination(_ place: MapPlace) {
         selectedPlace = nil; showingNearby = false
-        let location = locationModel.location
+        let location = currentLocation
         Task { await destinationModel.select(place, from: location) }
     }
     private var searchRegion: MKCoordinateRegion {
-        let centre = followsPatient ? (locationModel.location?.coordinate ?? visibleRegion.center) : visibleRegion.center
+        let centre = followsPatient ? (currentLocation?.coordinate ?? visibleRegion.center) : visibleRegion.center
         return MKCoordinateRegion(center: centre, latitudinalMeters: 4000, longitudinalMeters: 4000)
     }
     private func refreshLayers() {
