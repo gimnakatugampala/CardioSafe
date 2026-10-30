@@ -9,6 +9,8 @@ final class WalkingSessionViewModel {
     let destinationModel = WalkingDestinationViewModel()
     let automaticSOS = AutomaticSOSViewModel()
     let restStop = WalkingRestStopViewModel()
+    /// Simulator-only patient journey that follows a real MapKit walking route.
+    let journeySimulator = WalkingJourneySimulator()
     #if os(iOS)
     let locationModel = WalkingLocationViewModel(backgroundUpdates: true)
     let healthModel = WalkingHealthViewModel()
@@ -29,6 +31,61 @@ final class WalkingSessionViewModel {
         let item = MKMapItem(location: CLLocation(latitude: point.latitude, longitude: point.longitude), address: nil)
         item.name = "Walk starting point"
         return MapPlace(item: item, category: .parks)
+    }
+
+    // MARK: Simulated journey (simulator debug builds only)
+
+    static var supportsJourneySimulation: Bool {
+        #if DEBUG && targetEnvironment(simulator)
+        true
+        #else
+        false
+        #endif
+    }
+    /// True only for the real app view model (not unit-test instances) in a simulator build.
+    var canSimulateJourney: Bool { WalkingSessionViewModel.supportsJourneySimulation && tracksSensors }
+    private(set) var journeyEnabled: Bool = WalkingSessionViewModel.supportsJourneySimulation
+        && (UserDefaults.standard.object(forKey: "walkingJourneySimulation") as? Bool ?? true)
+    private(set) var simulatedLocation: CLLocation?
+    var isSimulatingJourney: Bool { canSimulateJourney && journeyEnabled && isActive }
+    /// The position the map should show: the simulated patient during a simulation, otherwise real GPS.
+    var currentLocation: CLLocation? {
+        if isSimulatingJourney { return simulatedLocation }
+        #if os(iOS)
+        return locationModel.location
+        #else
+        return nil
+        #endif
+    }
+
+    func setJourneySimulation(_ enabled: Bool) {
+        guard canSimulateJourney else { return }
+        journeyEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "walkingJourneySimulation")
+        guard isActive else { return }
+        if enabled { startJourneySimulation() } else { stopJourneySimulation() }
+    }
+
+    private func startJourneySimulation() {
+        guard canSimulateJourney, journeyEnabled, isActive else { return }
+        journeySimulator.start(
+            isMoving: { [weak self] in self?.phase == .walking },
+            onFix: { [weak self] fix in
+                guard let self, self.isActive else { return }
+                self.simulatedLocation = fix
+                self.recordLocation(fix)
+            })
+        #if os(iOS)
+        // The same session also feeds simulated steps, distance, heart rate and energy through HealthKit.
+        if healthModel.supportsSimulatorFeed {
+            Task { await healthModel.startSimulatorFeed() }
+        }
+        #endif
+    }
+
+    private func stopJourneySimulation() {
+        journeySimulator.stop()
+        simulatedLocation = nil
     }
 
     @ObservationIgnored private let clock: any WalkingSessionClock
@@ -63,6 +120,7 @@ final class WalkingSessionViewModel {
         destinationModel.endWalk()
         automaticSOS.setEnabled(false)
         restStop.clear()
+        stopJourneySimulation()
         phase = .ready; session = nil; intervalStart = nil
         needsRecoveryDecision = false; recoveryCheckpoint = nil; recoveryError = nil
         completedSessions = []; savedSessionIDs = []; saveError = nil; historyError = nil
@@ -134,6 +192,7 @@ final class WalkingSessionViewModel {
         destinationModel.endWalk()
         automaticSOS.setEnabled(false)
         restStop.clear()
+        stopJourneySimulation()
         let now = clock.read()
         session = WalkingSession(id: UUID(), plan: plan, startedAt: now.date, endedAt: nil, intervals: [])
         intervalStart = now
@@ -142,11 +201,15 @@ final class WalkingSessionViewModel {
         restStop.isWalking = true
         #if os(iOS)
         if tracksSensors {
-            locationModel.onLocation = { [weak self] in self?.recordLocation($0) }
+            locationModel.onLocation = { [weak self] fix in
+                guard let self, !self.isSimulatingJourney else { return }
+                self.recordLocation(fix)
+            }
             locationModel.start()
             healthModel.start(at: now.date)
         }
         #endif
+        startJourneySimulation()
         checkpoint()
         beginCheckpoints()
         return true
@@ -192,6 +255,7 @@ final class WalkingSessionViewModel {
         destinationModel.endWalk()
         automaticSOS.setEnabled(false)
         restStop.clear()
+        stopJourneySimulation()
         closeInterval(at: now, kind: phase == .walking ? .walking : .resting)
         session?.endedAt = now.date
         intervalStart = nil
@@ -266,10 +330,14 @@ final class WalkingSessionViewModel {
         restStop.isWalking = true; intervalStart = now; needsRouteSegment = true
         #if os(iOS)
         if tracksSensors {
-            locationModel.onLocation = { [weak self] in self?.recordLocation($0) }
+            locationModel.onLocation = { [weak self] fix in
+                guard let self, !self.isSimulatingJourney else { return }
+                self.recordLocation(fix)
+            }
             locationModel.start(); healthModel.start(at: now.date)
         }
         #endif
+        startJourneySimulation()
         checkpoint(); beginCheckpoints()
         return true
     }

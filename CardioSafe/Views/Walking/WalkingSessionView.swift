@@ -56,6 +56,7 @@ struct WalkingSessionView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {
                         automaticSOSSettings
+                        journeySettings
                         WalkingHealthPanel(model: viewModel.healthModel,
                             gpsDistance: (viewModel.session?.routeDistanceMetres ?? 0) > 0 ? viewModel.session?.routeDistanceMetres : nil)
                         }.padding(20)
@@ -184,6 +185,19 @@ struct WalkingSessionView: View {
         }
     }
 
+    @ViewBuilder private var journeySettings: some View {
+        if viewModel.canSimulateJourney {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle("Simulated walking journey", isOn: Binding(
+                    get: { viewModel.journeyEnabled },
+                    set: { viewModel.setJourneySimulation($0) }))
+                Text("Simulator only. The patient follows an Apple Maps walking route; location, distance, steps and heart rate are simulated test data and are labelled as such. Rest breaks pause the journey.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if viewModel.isSimulatingJourney { journeyProgress }
+            }
+        }
+    }
+
     private var automaticSOSSettings: some View {
         VStack(alignment: .leading, spacing: 10) {
             Toggle("Automatic SOS simulation", isOn: Binding(
@@ -229,6 +243,9 @@ struct WalkingSessionView: View {
             if viewModel.healthModel.usesSimulatorSamples {
                 Text("Simulated HealthKit samples").font(.caption2).foregroundStyle(.secondary)
             }
+            if viewModel.isSimulatingJourney {
+                journeyProgress
+            }
             if let plan = viewModel.session?.plan {
                 ProgressView(value: timing.progress).tint(CardioSafeTheme.teal)
                     .accessibilityLabel("Walking target progress")
@@ -254,6 +271,22 @@ struct WalkingSessionView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
         .padding(.horizontal, 12).padding(.bottom, 8)
         .frame(maxWidth: .infinity)
+    }
+
+    /// Simulator-only: shows the patient moving along an Apple Maps walking route.
+    private var journeyProgress: some View {
+        let journey = viewModel.journeySimulator
+        return VStack(alignment: .leading, spacing: 4) {
+            Label(journey.routeName, systemImage: "figure.walk.motion")
+                .font(.caption.weight(.semibold)).lineLimit(2)
+            ProgressView(value: journey.progress).tint(.orange)
+                .accessibilityLabel("Simulated journey progress")
+                .accessibilityValue("\(Int((journey.progress * 100).rounded(.down))) percent")
+            Text(journey.summary).font(.caption).monospacedDigit()
+            Text(resting ? "Patient is resting · journey paused" : (journey.statusMessage ?? "Simulated data"))
+                .font(.caption2).foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder private var compactHealthMetrics: some View {
