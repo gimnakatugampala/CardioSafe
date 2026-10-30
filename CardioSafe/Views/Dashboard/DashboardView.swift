@@ -14,6 +14,7 @@ struct DashboardView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var showingWalkingMap = false
     @State private var showingSession = false
+    @State private var history = HealthHistoryViewModel()
 
     private var surface: Color { CardioSafeTheme.surface(for: colorScheme) }
     private var ink: Color { CardioSafeTheme.text(for: colorScheme) }
@@ -35,14 +36,7 @@ struct DashboardView: View {
             VStack(alignment: .leading, spacing: 24) {
                 hero
                 NavigationLink { HealthHistoryView() } label: {
-                    HStack {
-                        Label("Health history", systemImage: "chart.bar.xaxis")
-                        Spacer()
-                        Text("Last 7 days").font(.caption).foregroundStyle(.secondary)
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-                    }
-                    .font(.subheadline.weight(.semibold)).padding(16)
-                    .background(surface, in: RoundedRectangle(cornerRadius: 16))
+                    HealthHistoryPreviewCard(model: history)
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 8)
@@ -55,11 +49,15 @@ struct DashboardView: View {
         }
         .foregroundStyle(ink)
         .background(CardioSafeTheme.background(for: colorScheme))
-        .refreshable { await viewModel.refreshHealth() }
+        .refreshable {
+            await viewModel.refreshHealth()
+            await history.load()
+        }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
             while !Task.isCancelled {
                 await viewModel.refreshHealth()
+                await history.load()
                 do { try await Task.sleep(for: .seconds(30)) } catch { return }
             }
         }

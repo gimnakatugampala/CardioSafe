@@ -254,10 +254,12 @@ struct ContentView: View {
                                 }
                             }
                     }
+                    // The custom bar must be inset *inside* each tab so scroll content
+                    // (Home cards, lists, charts) stops above it instead of sliding underneath.
+                    .safeAreaInset(edge: .bottom, spacing: 0) { bottomNavigation }
                 }
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) { bottomNavigation }
     }
 
     private func presentNotificationIfPossible() {
