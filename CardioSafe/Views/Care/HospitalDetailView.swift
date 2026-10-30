@@ -2,7 +2,7 @@ import SwiftUI
 import MapKit
 import Observation
 
-// MARK: - Route model (MapKit / MKDirections)
+// MARK: - Route model (MapKit first, OpenStreetMap fallback)
 
 enum HospitalRouteError: LocalizedError {
     case locationDenied, locationUnavailable, noRoute
@@ -31,6 +31,7 @@ final class HospitalRouteViewModel {
     private(set) var fastestDistanceMetres: Double?
     private(set) var fastestSeconds: Double?
     private(set) var routeVersion = UUID()
+    private(set) var sourceNote = ""
 
     @ObservationIgnored private let location = WalkingLocationViewModel()
     @ObservationIgnored private var directions: MKDirections?
@@ -42,7 +43,7 @@ final class HospitalRouteViewModel {
         errorMessage = nil
         polyline = nil; distanceMetres = nil; travelSeconds = nil
         fastestDistanceMetres = nil; fastestSeconds = nil
-        straightLineMetres = nil; routeCount = 0
+        straightLineMetres = nil; routeCount = 0; sourceNote = ""
         phase = .locating
         do {
             let (coordinate, description) = try await currentOrigin(token: token)
@@ -53,31 +54,52 @@ final class HospitalRouteViewModel {
                 .distance(from: place.item.location)
             phase = .routing
 
-            let request = MKDirections.Request()
-            request.source = MKMapItem(location: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude), address: nil)
-            request.destination = place.item
-            request.transportType = .automobile
-            request.requestsAlternateRoutes = true
-            let calculation = MKDirections(request: request)
-            directions = calculation
-            let timeout = Task { @MainActor in
-                do { try await Task.sleep(for: .seconds(30)); calculation.cancel() } catch {}
-            }
-            defer { timeout.cancel() }
+            var candidates: [(line: MKPolyline, metres: Double, seconds: Double)] = []
+            var note = "Apple Maps"
 
-            let response = try await calculation.calculate()
+            // 1. Apple Maps (MapKit)
+            do {
+                let request = MKDirections.Request()
+                request.source = MKMapItem(location: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude), address: nil)
+                request.destination = place.item
+                request.transportType = .automobile
+                request.requestsAlternateRoutes = true
+                let calculation = MKDirections(request: request)
+                directions = calculation
+                let timeout = Task { @MainActor in
+                    do { try await Task.sleep(for: .seconds(20)); calculation.cancel() } catch {}
+                }
+                defer { timeout.cancel() }
+                let response = try await calculation.calculate()
+                candidates = response.routes.map { ($0.polyline, $0.distance, $0.expectedTravelTime) }
+            } catch {
+                guard generation == token, !Task.isCancelled, !(error is CancellationError) else { return }
+                #if DEBUG
+                print("MKDirections failed:", error)
+                #endif
+            }
             guard generation == token, !Task.isCancelled else { return }
-            guard let shortest = response.routes.min(by: { $0.distance < $1.distance }) else {
+
+            // 2. Fallback: OpenStreetMap road routing (works where Apple Maps has no driving data)
+            if candidates.isEmpty {
+                let roads = try await CommunityRoadRoutingService().routes(from: coordinate, to: place.coordinate)
+                candidates = roads.map { ($0.polyline, $0.distanceMetres, $0.seconds) }
+                note = "OpenStreetMap (FOSSGIS)"
+            }
+            guard generation == token, !Task.isCancelled else { return }
+
+            guard let shortest = candidates.min(by: { $0.metres < $1.metres }) else {
                 throw HospitalRouteError.noRoute
             }
-            polyline = shortest.polyline
-            distanceMetres = shortest.distance
-            travelSeconds = shortest.expectedTravelTime
-            routeCount = response.routes.count
-            if let fastest = response.routes.min(by: { $0.expectedTravelTime < $1.expectedTravelTime }),
-               fastest !== shortest, fastest.expectedTravelTime < shortest.expectedTravelTime {
-                fastestDistanceMetres = fastest.distance
-                fastestSeconds = fastest.expectedTravelTime
+            sourceNote = note
+            polyline = shortest.line
+            distanceMetres = shortest.metres
+            travelSeconds = shortest.seconds
+            routeCount = candidates.count
+            if let fastest = candidates.min(by: { $0.seconds < $1.seconds }),
+               fastest.seconds < shortest.seconds {
+                fastestDistanceMetres = fastest.metres
+                fastestSeconds = fastest.seconds
             }
             routeVersion = UUID()
             phase = .ready
@@ -85,7 +107,10 @@ final class HospitalRouteViewModel {
             guard generation == token, !Task.isCancelled, !(error is CancellationError) else { return }
             phase = .failed
             errorMessage = (error as? HospitalRouteError)?.errorDescription
-                ?? "Road directions couldn’t be calculated. Check your connection and try again."
+                ?? (error as? CommunityRoutingError)?.errorDescription
+                ?? ((error as? URLError) != nil
+                    ? "Check your connection and try again."
+                    : "No driving route could be found from here to this hospital.")
         }
     }
 
@@ -311,8 +336,14 @@ struct HospitalDetailView: View {
             }
             Text("From: \(routeModel.originDescription)")
                 .font(.caption).foregroundStyle(.secondary)
-            Text("Estimate from Apple Maps. Traffic and road closures can change the route. In an emergency call 1990.")
+            Text("Route source: \(routeModel.sourceNote). Traffic and road closures can change the route. In an emergency call 1990.")
                 .font(.caption2).foregroundStyle(.secondary)
+            if routeModel.sourceNote.hasPrefix("OpenStreetMap") {
+                HStack(spacing: 10) {
+                    Link("© OpenStreetMap", destination: URL(string: "https://www.openstreetmap.org/copyright")!)
+                    Link("FOSSGIS", destination: URL(string: "https://routing.openstreetmap.de/about.html")!)
+                }.font(.caption2)
+            }
             Button { Task { await routeModel.start(to: hospital) } } label: {
                 Label("Recalculate from my location", systemImage: "arrow.clockwise").frame(minHeight: 44)
             }
