@@ -22,6 +22,8 @@ struct RecordsView: View {
     @State private var renaming: ScannedDocument?
     @State private var documentName = ""
     @State private var deleting: ScannedDocument?
+    @State private var searchText = ""
+    @State private var documentSort: DocumentSort = .newest
     @Environment(\.colorScheme) private var scheme
     @Environment(\.dynamicTypeSize) private var typeSize
 
@@ -44,6 +46,13 @@ struct RecordsView: View {
             if showingDocuments {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        Picker("Sort documents", selection: $documentSort) {
+                            ForEach(DocumentSort.allCases) { Text($0.rawValue).tag($0) }
+                        }
+                    } label: { Label("Sort", systemImage: "arrow.up.arrow.down") }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
                         if scanningAvailable { Button(action: startScan) { Label("Scan document", systemImage: "doc.viewfinder") } }
                         PhotosPicker(selection: $imageSelection, matching: .images) {
                             Label("Import image", systemImage: "photo")
@@ -54,6 +63,7 @@ struct RecordsView: View {
                 }
             }
         }
+        .modifier(DocumentSearchModifier(enabled: showingDocuments, text: $searchText))
         .task(id: ownerID) {
             model.load()
             do { sosSummaries = try ownerID.map { try SOSJourneySummaryStore().load(ownerID: $0) } ?? []; summaryLoadError = false }
@@ -138,6 +148,24 @@ struct RecordsView: View {
             Button("Cancel", role: .cancel) { deleting = nil }
         } message: { Text("This removes the document from your account’s list and cancels its linked reminders. The PDF file on this phone is removed; PDF files are not backed up.") }
     }
+    private var query: String { searchText.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var filteredDocuments: [ScannedDocument] {
+        var items = model.documents
+        if !query.isEmpty {
+            items = items.filter {
+                $0.title.localizedCaseInsensitiveContains(query) || ($0.reviewedText?.localizedCaseInsensitiveContains(query) ?? false)
+            }
+        }
+        switch documentSort {
+        case .newest: return items.sorted { $0.createdAt > $1.createdAt }
+        case .oldest: return items.sorted { $0.createdAt < $1.createdAt }
+        case .name: return items.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        case .pages: return items.sorted { $0.pageCount > $1.pageCount }
+        }
+    }
+    private var filteredSummaries: [SOSJourneySummary] {
+        query.isEmpty ? sosSummaries : sosSummaries.filter { $0.hospital.localizedCaseInsensitiveContains(query) }
+    }
     private var recordPicker: some View {
         Picker("Record type", selection: $showingDocuments) {
             Text("Walking").tag(false)
@@ -169,9 +197,9 @@ struct RecordsView: View {
                 }.padding(.vertical, 8)
             }
             if summaryLoadError { Section { Text("SOS summaries couldn’t be loaded. Reopen Records to retry.").foregroundStyle(.secondary) } }
-            if !sosSummaries.isEmpty {
-                Section("Completed SOS journeys") {
-                    ForEach(sosSummaries) { summary in
+            if !filteredSummaries.isEmpty {
+                Section("Completed SOS journeys (\(filteredSummaries.count))") {
+                    ForEach(filteredSummaries) { summary in
                         NavigationLink {
                             Form {
                                 Section("Handover completed") {
@@ -201,8 +229,11 @@ struct RecordsView: View {
             if model.isLoaded && model.documents.isEmpty {
                 Text("No saved PDFs yet. Add one above.").font(.subheadline).foregroundStyle(.secondary)
             }
-            Section("Saved PDFs") {
-                ForEach(model.documents) { document in
+            if !query.isEmpty && filteredDocuments.isEmpty && filteredSummaries.isEmpty {
+                ContentUnavailableView.search(text: query)
+            }
+            Section("Saved PDFs (\(filteredDocuments.count))") {
+                ForEach(filteredDocuments) { document in
                     NavigationLink { SavedDocumentView(document: document, url: model.url(for: document)) } label: {
                         HStack(spacing: 14) {
                             Image(systemName: "doc.richtext").font(.title2).foregroundStyle(.blue)
@@ -210,6 +241,10 @@ struct RecordsView: View {
                                 Text(document.title).font(.headline)
                                 Text("\(document.pageCount) \(document.pageCount == 1 ? "page" : "pages") · \(document.createdAt.formatted(date: .abbreviated, time: .omitted))")
                                     .font(.caption).foregroundStyle(.secondary)
+                                if let text = document.reviewedText, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    Label("Searchable text saved", systemImage: "text.magnifyingglass")
+                                        .font(.caption2).foregroundStyle(.secondary)
+                                }
                             }
                         }.padding(.vertical, 6)
                     }
@@ -253,6 +288,24 @@ struct RecordsView: View {
         model.clearError(); scannedData = nil; scanning = true
         #endif
     }
+}
+
+/// Search is offered only on the Documents tab; the Walking tab keeps its own filters.
+private struct DocumentSearchModifier: ViewModifier {
+    let enabled: Bool
+    @Binding var text: String
+    func body(content: Content) -> some View {
+        if enabled {
+            content.searchable(text: $text, prompt: "Search documents and SOS journeys")
+        } else {
+            content
+        }
+    }
+}
+
+private enum DocumentSort: String, CaseIterable, Identifiable {
+    case newest = "Newest first", oldest = "Oldest first", name = "Name", pages = "Most pages"
+    var id: String { rawValue }
 }
 
 private struct PendingScan: Identifiable {
