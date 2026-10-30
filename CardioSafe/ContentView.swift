@@ -7,6 +7,7 @@ struct ContentView: View {
     @Environment(AppLockViewModel.self) private var appLock
     @State private var shouldShowRestoredSOS = false
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.scenePhase) private var scenePhase
     @State private var facilityAlerts = FacilitySOSAlerts()
     @State private var notificationRouter = SOSNotificationRouter.shared
@@ -287,7 +288,41 @@ struct ContentView: View {
         showingEmergency = true
     }
 
-    private var bottomNavigation: some View {
+    @ViewBuilder private var bottomNavigation: some View {
+        if typeSize.isAccessibilitySize {
+            HStack(spacing: 16) {
+                Menu {
+                    ForEach([AppTab.home, .care, .records, .profile], id: \.self) { tab in
+                        Button { selection = tab } label: { Label(tab.rawValue, systemImage: tab.symbol) }
+                    }
+                } label: {
+                    Label(selection.rawValue, systemImage: "line.3.horizontal")
+                        .font(.headline).fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                }
+                .accessibilityLabel("Navigate, \(selection.rawValue)")
+                .accessibilityHint("Choose Home, Find Care, Records or Profile")
+                Button {
+                    selection = .walk
+                    if sessionViewModel.isActive || sessionViewModel.start(plan: dashboardViewModel.snapshot.walkingPlan) {
+                        showingWalkingSession = true
+                    }
+                } label: {
+                    Image(systemName: "figure.walk").font(.system(size: 25, weight: .semibold))
+                        .foregroundStyle(.white).frame(width: 56, height: 56)
+                        .background(CardioSafeTheme.navy, in: Circle())
+                }
+                .accessibilityLabel(sessionViewModel.isActive ? "Return to walking session" : "Start walking")
+            }
+            .padding(16).foregroundStyle(CardioSafeTheme.accent(for: scheme))
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
+            .padding(.horizontal, 12).padding(.bottom, 4)
+        } else {
+            standardBottomNavigation
+        }
+    }
+
+    private var standardBottomNavigation: some View {
         HStack(alignment: .center, spacing: 0) {
             navigationButton(.home)
             navigationButton(.care)
@@ -306,7 +341,7 @@ struct ContentView: View {
                         .overlay(Circle().stroke(.white.opacity(0.22), lineWidth: 2))
                     Text(sessionViewModel.isActive ? "Resume" : "Walk")
                         .font(.caption2.bold())
-                        .foregroundStyle(CardioSafeTheme.teal)
+                        .foregroundStyle(CardioSafeTheme.accent(for: scheme))
                 }
                 .frame(maxWidth: .infinity, minHeight: 76)
                 .contentShape(Rectangle())
@@ -333,11 +368,12 @@ struct ContentView: View {
                 Text(tab.rawValue).font(.caption2.weight(selection == tab ? .semibold : .regular))
                     .lineLimit(1).minimumScaleFactor(0.8)
             }
-            .foregroundStyle(selection == tab ? CardioSafeTheme.teal : .secondary)
+            .foregroundStyle(selection == tab ? CardioSafeTheme.accent(for: scheme) : .secondary)
             .frame(maxWidth: .infinity, minHeight: 60)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(tab.rawValue)
         .accessibilityAddTraits(selection == tab ? .isSelected : [])
     }
 

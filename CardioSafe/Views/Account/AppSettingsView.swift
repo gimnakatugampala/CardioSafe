@@ -57,7 +57,9 @@ struct AppSettingsView: View {
                 }
             }
             Section {
-                NavigationLink("Voice & Siri") { WalkingVoiceControlsView() }
+                NavigationLink { WalkingVoiceControlsView() } label: {
+                    Label("Voice & accessibility", systemImage: "speaker.wave.2")
+                }
             }
             Section("Your data") {
                 Label("Walking records sync with your account", systemImage: "iphone")

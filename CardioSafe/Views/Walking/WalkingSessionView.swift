@@ -71,7 +71,7 @@ struct WalkingSessionView: View {
                 .presentationDragIndicator(.visible)
             }
         }
-        .tint(CardioSafeTheme.teal)
+        .tint(CardioSafeTheme.accent(for: colorScheme))
         .interactiveDismissDisabled(viewModel.isActive)
         .onChange(of: viewModel.automaticSOS.state) { _, state in
             if state == .submitted {
@@ -127,6 +127,7 @@ struct WalkingSessionView: View {
     }
 
     private var activeMapScreen: some View {
+        GeometryReader { geometry in
         WalkingLiveMapView(sessionViewModel: viewModel)
             .ignoresSafeArea()
             .safeAreaInset(edge: .top, spacing: 0) {
@@ -138,7 +139,7 @@ struct WalkingSessionView: View {
                     .accessibilityLabel("Minimise walking session")
                     Spacer()
                     WalkingStatusPill(title: resting ? "Resting" : "Walking", symbol: phaseSymbol,
-                                      colour: resting ? restColour : CardioSafeTheme.teal)
+                                      colour: resting ? restColour : CardioSafeTheme.accent(for: colorScheme))
                         .background(.regularMaterial, in: Capsule())
                     Spacer()
                     Button { showingEmergency = true } label: {
@@ -171,10 +172,16 @@ struct WalkingSessionView: View {
                                 }
                             }.padding(12).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16)).padding(.horizontal, 12)
                         }
-                        activeControls(viewModel.timing())
+                        if typeSize.isAccessibilitySize {
+                            ScrollView { activeControls(viewModel.timing()) }
+                                .frame(height: geometry.size.height * 0.55)
+                        } else {
+                            activeControls(viewModel.timing())
+                        }
                     }
                 }
             }
+        }
     }
 
     private var automaticSOSSettings: some View {
@@ -200,7 +207,7 @@ struct WalkingSessionView: View {
 
     private func activeControls(_ timing: WalkingSessionTiming) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center) {
+            (typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10)) : AnyLayout(HStackLayout(alignment: .center))) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(resting ? "Rest break" : "Walking time")
                         .font(.caption).foregroundStyle(.secondary)
@@ -208,10 +215,10 @@ struct WalkingSessionView: View {
                         .font(.system(.title, design: .rounded, weight: .semibold))
                         .monospacedDigit().foregroundStyle(resting ? restColour : CardioSafeTheme.text(for: colorScheme))
                 }
-                Spacer(minLength: 8)
+                if !typeSize.isAccessibilitySize { Spacer(minLength: 8) }
                 Button { showingHealthDetails = true } label: {
                     Label("Health details", systemImage: "chevron.up")
-                        .font(.caption.weight(.semibold)).frame(minHeight: 44)
+                        .font(.caption.weight(.semibold)).fixedSize(horizontal: false, vertical: true).frame(minHeight: 44)
                 }
                 .accessibilityHint("Opens all health readings, data sources and connection controls")
             }

@@ -24,11 +24,11 @@ struct HospitalDetailView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 10) {
                         Label("CARE FINDER", systemImage: "cross.case.fill")
-                            .font(.caption.weight(.bold)).tracking(1.5).foregroundStyle(CardioSafeTheme.teal)
+                            .font(.caption.weight(.bold)).tracking(1.5).foregroundStyle(CardioSafeTheme.accent(for: scheme))
                         Text(hospital.name).font(.largeTitle.bold()).tracking(-0.8)
                         Text(hospital.address).font(.subheadline).foregroundStyle(.secondary)
                         Label(distance, systemImage: "location.fill")
-                            .font(.caption.weight(.medium)).foregroundStyle(CardioSafeTheme.teal)
+                            .font(.caption.weight(.medium)).foregroundStyle(CardioSafeTheme.accent(for: scheme))
                     }
                     Map(initialPosition: .region(MKCoordinateRegion(center: hospital.coordinate,
                                                                     latitudinalMeters: 1500, longitudinalMeters: 1500))) {
@@ -64,7 +64,7 @@ struct HospitalDetailView: View {
                     HStack {
                         Text("Department queues").font(.title3.bold())
                         Spacer()
-                        Image(systemName: "person.3.sequence.fill").foregroundStyle(CardioSafeTheme.teal)
+                        Image(systemName: "person.3.sequence.fill").foregroundStyle(CardioSafeTheme.accent(for: scheme)).accessibilityHidden(true)
                     }.padding(.top, 8)
                     HospitalQueuesView(mapPlaceID: hospital.id)
                     HStack(alignment: .top, spacing: 12) {

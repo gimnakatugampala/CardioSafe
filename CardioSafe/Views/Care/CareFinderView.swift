@@ -9,12 +9,14 @@ struct CareFinderView: View {
     @State private var selectedHospital: MapPlace?
     @State private var wantsNearby = false
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
                     TextField("Search hospitals in this area", text: $model.query)
                         .submitLabel(.search).onSubmit { search() }
                     if !model.query.isEmpty {
@@ -43,10 +45,10 @@ struct CareFinderView: View {
                 .mapStyle(.standard(pointsOfInterest: .excludingAll))
                 .frame(height: 290).clipShape(RoundedRectangle(cornerRadius: 20))
                 .onMapCameraChange(frequency: .onEnd) { context in model.region = context.region }
-                HStack {
+                (typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12)) : AnyLayout(HStackLayout())) {
                     Button { search() } label: { Label("Search this area", systemImage: "arrow.clockwise") }
                         .buttonStyle(.borderedProminent)
-                    Spacer(minLength: 8)
+                    if !typeSize.isAccessibilitySize { Spacer(minLength: 8) }
                     Button {
                         wantsNearby = true
                         locationModel.start()
@@ -93,8 +95,8 @@ struct CareFinderView: View {
                                 Image(systemName: "chevron.right").font(.caption)
                             }
                             Text(hospital.address).font(.caption).foregroundStyle(.secondary)
-                                .lineLimit(2)
-                            Text(model.distanceText(to: hospital)).font(.caption).foregroundStyle(CardioSafeTheme.teal)
+                                .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+                            Text(model.distanceText(to: hospital)).font(.caption).foregroundStyle(CardioSafeTheme.accent(for: scheme))
                         }
                         .frame(maxWidth: .infinity, alignment: .leading).padding(17)
                         .background(.background, in: RoundedRectangle(cornerRadius: 16))

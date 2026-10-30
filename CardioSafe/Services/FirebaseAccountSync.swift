@@ -61,12 +61,25 @@ final class FirebaseAccountSync {
             Task { @MainActor in
                 guard let self, self.generation == expected else { return }
                 if error != nil { self.status = "Cloud sync unavailable · Check your connection and private-data rules"; return }
-                guard let snapshot, !snapshot.metadata.isFromCache, !snapshot.metadata.hasPendingWrites else { return }
+                guard let snapshot else { return }
+                if snapshot.metadata.isFromCache || snapshot.metadata.hasPendingWrites {
+                    self.connectionConfirmed = false
+                    self.status = snapshot.metadata.hasPendingWrites
+                        ? "Sync pending · Local changes are kept until the cloud confirms them"
+                        : "Cloud connection unconfirmed · Local records remain available"
+                    return
+                }
                 do {
                     for doc in snapshot.documents { try await self.receive(doc, owner: owner, expected: expected) }
                     guard self.generation == expected else { return }
                     self.connectionConfirmed = true
                     await self.restoreReminders(owner: owner, expected: expected)
+                    guard self.generation == expected else { return }
+                    if !self.busy {
+                        self.status = self.conflicts.isEmpty
+                            ? "Records synced to your account · PDF files stay on this phone"
+                            : "Conflicting edits need your choice"
+                    }
                     NotificationCenter.default.post(name: .accountDataRestored, object: owner)
                 } catch { self.status = "Some cloud records could not be restored · Retry sync" }
             }

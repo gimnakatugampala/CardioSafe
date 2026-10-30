@@ -20,6 +20,17 @@ struct AccountView: View {
                     }
                 }.padding(.vertical, 10)
             }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+            Section {
+                NavigationLink { WalkingVoiceControlsView() } label: {
+                    Label {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Voice & accessibility")
+                            Text("Siri shortcuts, read aloud and VoiceOver")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    } icon: { Image(systemName: "speaker.wave.2") }
+                }
+            }
             if let account = model.account {
                 if account.role == .patient {
                     Section {
@@ -97,7 +108,7 @@ struct AccountView: View {
                         .foregroundStyle(notice.isError ? CardioSafeTheme.alert : CardioSafeTheme.teal)
                     Text(notice.text).font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, alignment: .leading)
                     Button { model.dismissNotice() } label: {
-                        Image(systemName: "xmark").font(.caption.bold()).frame(width: 28, height: 28)
+                        Image(systemName: "xmark").font(.caption.bold()).frame(width: 44, height: 44)
                     }.accessibilityLabel("Dismiss notification")
                 }
                 .padding(16)
@@ -129,6 +140,7 @@ struct AccountSignInView: View {
     @State private var submitted = false
     @State private var showingPasswordRecovery = false
     @Namespace private var accountTabAnimation
+    @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
@@ -159,15 +171,20 @@ struct AccountSignInView: View {
                         Text(registering ? "Connect with care and keep hospital updates close." : "Sign in to view hospital queues and manage your account.")
                             .font(.subheadline).foregroundStyle(.secondary)
                     }
-                    HStack(spacing: 4) {
-                        accountTab("Sign in", icon: "person.crop.circle", registration: false)
-                        accountTab("Create account", icon: "person.crop.circle.badge.plus", registration: true)
+                    if typeSize.isAccessibilitySize {
+                        Picker("Account action", selection: $registering) {
+                            Text("Sign in").tag(false)
+                            Text("Create account").tag(true)
+                        }.pickerStyle(.menu)
+                    } else {
+                        HStack(spacing: 4) {
+                            accountTab("Sign in", icon: "person.crop.circle", registration: false)
+                            accountTab("Create account", icon: "person.crop.circle.badge.plus", registration: true)
+                        }
+                        .padding(5)
+                        .background(CardioSafeTheme.teal.opacity(0.07), in: Capsule())
+                        .overlay { Capsule().stroke(CardioSafeTheme.teal.opacity(0.12), lineWidth: 1) }
                     }
-                    .padding(5)
-                    .background(CardioSafeTheme.teal.opacity(0.07), in: Capsule())
-                    .overlay { Capsule().stroke(CardioSafeTheme.teal.opacity(0.12), lineWidth: 1) }
-                    .accessibilityElement(children: .contain)
-                    .accessibilityLabel("Account action")
 
                     VStack(alignment: .leading, spacing: 22) {
                         input("Email address", icon: "envelope") {
@@ -251,7 +268,7 @@ struct AccountSignInView: View {
         } label: {
             HStack(spacing: 7) {
                 Image(systemName: icon).font(.subheadline.weight(.medium))
-                Text(title).font(.subheadline.weight(.semibold))
+                Text(title).font(.subheadline.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
             }
             .foregroundStyle(selected ? Color.white : CardioSafeTheme.text(for: scheme).opacity(0.65))
             .frame(maxWidth: .infinity, minHeight: 46)
@@ -274,8 +291,10 @@ struct AccountSignInView: View {
         VStack(alignment: .leading, spacing: 9) {
             Text(title).font(.subheadline.weight(.semibold))
             HStack(spacing: 12) {
-                Image(systemName: icon).foregroundStyle(.secondary).frame(width: 22)
-                content()
+                if !typeSize.isAccessibilitySize {
+                    Image(systemName: icon).foregroundStyle(.secondary).frame(width: 22).accessibilityHidden(true)
+                }
+                content().accessibilityLabel(title)
             }
             .padding(16)
             .background(CardioSafeTheme.surface(for: scheme), in: RoundedRectangle(cornerRadius: 14))

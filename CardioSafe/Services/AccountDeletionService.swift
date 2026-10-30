@@ -23,8 +23,16 @@ enum AccountDeletionError: LocalizedError {
     func clearDatabaseCache() async -> String?
 }
 @MainActor struct FirebaseAccountDeletionService: AccountDeleting {
+    private let auth: Auth
+    private let database: Firestore
+    private let managesDefaultCache: Bool
+    init(auth: Auth? = nil, database: Firestore? = nil) {
+        self.auth = auth ?? Auth.auth()
+        self.database = database ?? Firestore.firestore()
+        managesDefaultCache = database == nil
+    }
     private func user(_ owner: String? = nil) throws -> User {
-        guard let user = Auth.auth().currentUser else { throw AccountDeletionError.signIn }
+        guard let user = auth.currentUser else { throw AccountDeletionError.signIn }
         if let owner, user.uid != owner { throw AccountDeletionError.ownerChanged }
         return user
     }
@@ -39,8 +47,13 @@ enum AccountDeletionError: LocalizedError {
     }
     func checkSOS(owner: String) async throws {
         _ = try user(owner)
-        if let saved = try await CloudSOSRecovery().load(owner: owner) {
-            let snapshot = try await Firestore.firestore().collection("hospitals").document(saved.destination.hospitalID)
+        let recovery = try await database.collection("users").document(owner).collection("activeSOS").document("current").getDocument(source: .server)
+        if recovery.exists {
+            guard let bytes = recovery.data()?["payload"] as? Data else { throw DispatchSelectionError.unavailable }
+            let saved = try JSONDecoder().decode(SavedSOS.self, from: bytes)
+            guard saved.ownerID == owner, saved.destination.hospitalID == "demo-asiri-central",
+                  !saved.requestID.isEmpty, saved.requestID.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { throw DispatchSelectionError.unavailable }
+            let snapshot = try await database.collection("hospitals").document(saved.destination.hospitalID)
                 .collection("sosRequests").document(saved.requestID).getDocument(source: .server)
             guard !snapshot.exists || ["cancelled", "completed"].contains(snapshot.data()?["status"] as? String ?? "") else {
                 throw AccountDeletionError.activeSOS
@@ -48,7 +61,7 @@ enum AccountDeletionError: LocalizedError {
         }
     }
     func deleteCloud(owner: String) async throws {
-        let db = Firestore.firestore()
+        let db = database
         let marker = db.collection("users").document(owner).collection("deletion").document("status")
         let active = db.collection("users").document(owner).collection("activeSOS").document("current")
         _ = try await db.runTransaction { transaction, errorPointer -> Any? in
@@ -68,7 +81,7 @@ enum AccountDeletionError: LocalizedError {
                 return nil
             } catch { errorPointer?.pointee = error as NSError; return nil }
         }
-        for name in ["records", "recordChunks", "activeSOS"] {
+        for name in ["records", "recordChunks"] {
             let collection = db.collection("users").document(owner).collection(name)
             while true {
                 _ = try user(owner)
@@ -78,6 +91,10 @@ enum AccountDeletionError: LocalizedError {
                 for document in snapshot.documents { batch.deleteDocument(document.reference) }
                 try await batch.commit()
             }
+        }
+        _ = try user(owner)
+        if try await active.getDocument(source: .server).exists {
+            try await active.delete()
         }
     }
     func deleteLocal(owner: String) async throws {
@@ -93,11 +110,11 @@ enum AccountDeletionError: LocalizedError {
     }
     func deleteIdentity(owner: String) async throws { try await user(owner).delete() }
     func clearDatabaseCache() async -> String? {
-        UserDefaults.standard.set(true, forKey: "clearFirestoreAfterDeletion")
+        if managesDefaultCache { UserDefaults.standard.set(true, forKey: "clearFirestoreAfterDeletion") }
         do {
-            try await Firestore.firestore().terminate()
-            try await Firestore.firestore().clearPersistence()
-            UserDefaults.standard.removeObject(forKey: "clearFirestoreAfterDeletion")
+            try await database.terminate()
+            try await database.clearPersistence()
+            if managesDefaultCache { UserDefaults.standard.removeObject(forKey: "clearFirestoreAfterDeletion") }
             return nil
         } catch { return "Account deleted. Device database cleanup will retry when CardioSafe restarts." }
     }

@@ -4,6 +4,7 @@ struct WalkingHistoryView: View {
     let viewModel: WalkingSessionViewModel
     var title = "Walking history"
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var selectedSession: WalkingSession?
 
     var body: some View {
@@ -13,7 +14,7 @@ struct WalkingHistoryView: View {
                     Label("YOUR WALKING RECORD", systemImage: "figure.walk")
                         .font(.caption.weight(.bold)).tracking(1.2).foregroundStyle(CardioSafeTheme.accent(for: scheme))
                     Text("Every walk counts.").font(.title2.bold())
-                    HStack(alignment: .top, spacing: 16) {
+                    (typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16)) : AnyLayout(HStackLayout(alignment: .top, spacing: 16))) {
                         metric("Walks", value: "\(viewModel.completedSessions.count)")
                         metric("Walking", value: viewModel.durationText(viewModel.completedSessions.reduce(0) { $0 + $1.walkingSeconds }))
                         metric("Resting", value: viewModel.durationText(viewModel.completedSessions.reduce(0) { $0 + $1.restingSeconds }))

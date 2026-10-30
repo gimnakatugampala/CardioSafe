@@ -23,13 +23,17 @@ struct RecordsView: View {
     @State private var documentName = ""
     @State private var deleting: ScannedDocument?
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Record type", selection: $showingDocuments) {
-                Text("Walking").tag(false)
-                Text("Documents").tag(true)
-            }.pickerStyle(.segmented).padding(.horizontal, 20).padding(.vertical, 10)
+            Group {
+                if typeSize.isAccessibilitySize {
+                    recordPicker.pickerStyle(.menu)
+                } else {
+                    recordPicker.pickerStyle(.segmented)
+                }
+            }.padding(.horizontal, 20).padding(.vertical, 10)
             if showingDocuments { documents }
             else { WalkingHistoryView(viewModel: sessionModel, title: "Records") }
         }
@@ -133,6 +137,12 @@ struct RecordsView: View {
             }
             Button("Cancel", role: .cancel) { deleting = nil }
         } message: { Text("This removes the document from your account’s list and cancels its linked reminders. The PDF file on this phone is removed; PDF files are not backed up.") }
+    }
+    private var recordPicker: some View {
+        Picker("Record type", selection: $showingDocuments) {
+            Text("Walking").tag(false)
+            Text("Documents").tag(true)
+        }
     }
     private var documents: some View {
         List {

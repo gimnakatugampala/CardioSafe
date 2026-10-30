@@ -39,7 +39,7 @@ import UserNotifications
         manager.startMonitoring(for: region)
     }
     func stop() {
-        for region in manager.monitoredRegions where region.identifier.hasPrefix("cardiosafe.arrival.") {
+        for region in manager.monitoredRegions where region.identifier.hasPrefix(prefix) {
             manager.stopMonitoring(for: region)
         }
     }

@@ -59,25 +59,13 @@ struct DashboardView: View {
     private var recoveryOverview: some View {
         VStack(spacing: -20) {
             VStack(alignment: .leading, spacing: 25) {
-                HStack(spacing: 9) {
-                    RecoveryMark()
-                        .stroke(accent, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                        .frame(width: 28, height: 28).accessibilityHidden(true)
-                    Text("CardioSafe").font(.headline).tracking(-0.4)
-                    Spacer(minLength: 4)
-                    Button(action: onEmergencyContacts) {
-                        Text("SOS").font(.caption.bold())
-                            .frame(minWidth: 44, minHeight: 44)
-                            .foregroundStyle(Color(red: 1, green: 0.72, blue: 0.74))
-                            .background(.white.opacity(0.07), in: Circle())
+                ViewThatFits(in: .horizontal) {
+                    dashboardHeader
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("CardioSafe").font(.headline)
+                            .fixedSize(horizontal: false, vertical: true)
+                        headerActions
                     }
-                    .buttonStyle(.plain).accessibilityLabel("Emergency Help")
-                    Button { onSelectTab(.profile) } label: {
-                        Image(systemName: "person.crop.circle")
-                            .font(.title2).foregroundStyle(.white.opacity(0.85))
-                            .frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.plain).accessibilityLabel("Profile and settings")
                 }
                 HStack(alignment: .bottom, spacing: 12) {
                     VStack(alignment: .leading, spacing: 5) {
@@ -105,6 +93,35 @@ struct DashboardView: View {
         }
     }
 
+    private var dashboardHeader: some View {
+        HStack(spacing: 9) {
+            RecoveryMark()
+                .stroke(accent, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                .frame(width: 28, height: 28).accessibilityHidden(true)
+            Text("CardioSafe").font(.headline).tracking(-0.4).fixedSize()
+            Spacer(minLength: 4)
+            headerActions
+        }
+    }
+
+    private var headerActions: some View {
+        HStack(spacing: 12) {
+            Button(action: onEmergencyContacts) {
+                Text("SOS").font(.caption.bold())
+                    .frame(minWidth: 44, minHeight: 44)
+                    .foregroundStyle(Color(red: 1, green: 0.72, blue: 0.74))
+                    .background(.white.opacity(0.07), in: Circle())
+            }
+            .buttonStyle(.plain).accessibilityLabel("Emergency Help")
+            Button { onSelectTab(.profile) } label: {
+                Image(systemName: "person.crop.circle")
+                    .font(.title2).foregroundStyle(.white.opacity(0.85))
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain).accessibilityLabel("Profile and settings")
+        }
+    }
+
     private var healthSummary: some View {
         VStack(alignment: .leading, spacing: 14) {
             if typeSize.isAccessibilitySize {
@@ -123,7 +140,7 @@ struct DashboardView: View {
             }
             Divider()
             HStack(spacing: 7) {
-                Image(systemName: "heart.fill").foregroundStyle(CardioSafeTheme.alert)
+                Image(systemName: "heart.fill").foregroundStyle(CardioSafeTheme.alert).accessibilityHidden(true)
                 Text(viewModel.snapshot.healthReadings.isEmpty ? "No readable Health samples" : "Apple Health · Today’s activity & latest heart rate")
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
