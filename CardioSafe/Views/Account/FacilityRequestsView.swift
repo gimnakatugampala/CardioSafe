@@ -5,10 +5,6 @@ struct FacilityRequestsView: View {
     @State private var model = FacilityRequestsViewModel()
     var body: some View {
         List {
-            Section {
-                Label("Simulation · No real dispatch", systemImage: "info.circle")
-                    .font(.subheadline).foregroundStyle(.secondary)
-            }
             if let completed = model.completedRequestID {
                 Section {
                     Label("Request \(completed.prefix(8)) completed", systemImage: "checkmark.circle.fill")
@@ -61,7 +57,7 @@ struct FacilityRequestsView: View {
                 Button {
                     Task { await model.advance(request, hospitalID: hospitalID) }
                 } label: {
-                    Text(model.savingID == request.id ? "Confirming…" : remaining > 0 ? "Simulated arrival in \(remaining) sec" : status?.action ?? "Unavailable")
+                    Text(model.savingID == request.id ? "Confirming…" : remaining > 0 ? "Ambulance en route · \(remaining) sec" : status?.action ?? "Unavailable")
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }.buttonStyle(.borderedProminent).disabled(remaining > 0 || model.savingID != nil || status?.next == nil)
             }

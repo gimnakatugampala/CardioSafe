@@ -84,8 +84,8 @@ struct HospitalOverviewView: View {
                     ForEach(queues.departments) { queue in
                         HStack(alignment: .top, spacing: 12) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(queue.name).font(.subheadline.weight(.semibold))
-                                QueueTimestampView(queue: queue)
+                                Text(queue.staffDisplayName).font(.subheadline.weight(.semibold))
+                                QueueTimestampView(queue: queue, showsDemoLabel: false)
                             }
                             Spacer()
                             VStack(alignment: .trailing, spacing: 2) {
@@ -99,13 +99,12 @@ struct HospitalOverviewView: View {
 
                 VStack(alignment: .leading, spacing: 10) {
                     Label("Stay ready for new requests", systemImage: "bell.badge").font(.headline)
-                    Text("Enable notifications once. Keep the facility app open during the two-device demonstration.")
+                    Text("Enable notifications to be alerted when a new SOS request reaches your hospital. Keep the app open to receive alerts.")
                         .font(.subheadline).foregroundStyle(.secondary)
                     Button("Enable SOS alerts") { Task { await alerts.enable() } }.buttonStyle(.bordered)
                     if let message = alerts.message { Text(message).font(.caption).foregroundStyle(.secondary) }
                 }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
                     .background(CardioSafeTheme.surface(for: scheme), in: RoundedRectangle(cornerRadius: 22))
-                Text("Coursework simulation · No real ambulance dispatch").font(.caption).foregroundStyle(.secondary)
             }.padding(20)
         }
         .background(CardioSafeTheme.background(for: scheme))

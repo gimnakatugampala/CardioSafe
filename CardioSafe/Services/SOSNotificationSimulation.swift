@@ -10,8 +10,8 @@ struct SOSNotificationSimulation {
         let center = UNUserNotificationCenter.current()
         guard try await center.requestAuthorization(options: [.alert, .sound]) else { throw SimulationError.permission }
         let content = UNMutableNotificationContent()
-        content.title = "CardioSafe · SOS notification test"
-        content.body = "Simulation alert. Tap to open your hospital’s live Firebase SOS inbox."
+        content.title = "New SOS request"
+        content.body = "A request reached your hospital. Tap to open the SOS inbox."
         content.sound = .default
         // Same string data fields can be carried by an FCM notification message.
         content.userInfo = ["type": "hospital_sos", "simulation": "true", "hospitalID": hospitalID, "staffID": account.id]

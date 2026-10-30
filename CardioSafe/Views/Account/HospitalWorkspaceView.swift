@@ -84,6 +84,9 @@ struct HospitalAccountView: View {
                         if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                     }
                 }
+                Section("About") {
+                    Text("Prototype using sample hospital data").font(.footnote).foregroundStyle(.secondary)
+                }
                 Section {
                     Button("Sign out", role: .destructive) { model.signOut(); if model.account == nil { dismiss() } }
                         .disabled(model.isBusy)

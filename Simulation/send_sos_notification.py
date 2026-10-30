@@ -13,8 +13,8 @@ def simulator_payload(staff_id, hospital_id):
             raise ValueError("Use valid staff and hospital identifiers.")
     message = {
         "notification": {
-            "title": "CardioSafe · SOS notification test",
-            "body": "Simulation alert. Tap to open your hospital’s live Firebase SOS inbox.",
+            "title": "New SOS request",
+            "body": "A request reached your hospital. Tap to open the SOS inbox.",
         },
         "data": {
             "type": "hospital_sos", "simulation": "true",

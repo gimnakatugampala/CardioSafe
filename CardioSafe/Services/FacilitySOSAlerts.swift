@@ -57,7 +57,7 @@ final class FacilitySOSAlerts {
     func enable() async {
         do {
             let allowed = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
-            message = allowed ? "SOS alerts enabled. Keep this app running during the two-device demonstration." : "Allow CardioSafe notifications in iOS Settings to receive SOS alerts."
+            message = allowed ? "SOS alerts enabled. Keep this app open to receive new requests." : "Allow CardioSafe notifications in iOS Settings to receive SOS alerts."
         } catch { message = "Notification permission could not be requested. Please retry." }
     }
     private func notify(hospitalID: String, requestID: String, account: AppAccount, generation expected: UUID) async {
