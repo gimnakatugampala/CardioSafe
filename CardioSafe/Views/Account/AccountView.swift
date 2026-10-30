@@ -5,120 +5,31 @@ struct AccountView: View {
     let model: AccountViewModel
     let sessionModel: WalkingSessionViewModel
     @State private var showingSignIn = false
+    @State private var displayName = ""
+    @State private var emergencyContactName = ""
+    @ScaledMetric(relativeTo: .title) private var avatarSize: CGFloat = 60
     @Environment(\.colorScheme) private var scheme
+
+    private var surface: Color { CardioSafeTheme.surface(for: scheme) }
+    private var accent: Color { CardioSafeTheme.accent(for: scheme) }
+
     var body: some View {
         Form {
-            Section {
-                HStack(spacing: 16) {
-                    Image(systemName: "person.crop.circle.fill")
-                        .font(.system(size: 48)).foregroundStyle(CardioSafeTheme.teal)
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(model.account == nil ? "Your care, connected" : "Your CardioSafe account")
-                            .font(.title3.weight(.bold))
-                        Text(model.account == nil ? "Manage your account and walking activity." : "Manage access, verification and activity.")
-                            .font(.subheadline).foregroundStyle(.secondary)
-                    }
-                }.padding(.vertical, 10)
-            }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-            Section {
-                NavigationLink { WalkingVoiceControlsView() } label: {
-                    Label {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Voice & accessibility")
-                            Text("Siri shortcuts, read aloud and VoiceOver")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                    } icon: { Image(systemName: "speaker.wave.2") }
-                }
-            }
+            headerSection
             if let account = model.account {
-                if account.role == .patient {
-                    Section {
-                        NavigationLink { AccountSyncView() } label: { Label("Account sync", systemImage: "icloud") }
-                    }
-                }
-                Section {
-                    NavigationLink { PatientProfileView(accountID: account.id).id(account.id) } label: {
-                        Label("My details", systemImage: "person.text.rectangle")
-                    }
-                    Text("Personal details and emergency contact · Synced to your account")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Section {
-                    DisclosureGroup("Account & verification") {
-                    LabeledContent("Email", value: account.email)
-                    LabeledContent("Role", value: account.role == .staff ? "Hospital staff" : "Patient")
-                    LabeledContent("Email verified", value: account.isEmailVerified ? "Yes" : "Not yet")
-                    if !account.isEmailVerified {
-                        Button { Task { await model.sendVerification() } } label: {
-                            Label(model.isBusy ? "Sending…" : "Send verification email", systemImage: "envelope.badge")
-                        }
-                    }
-                    Button("Refresh account") { Task { await model.restore() } }
-                    }
-                }
-                if account.canManageQueues {
-                    Section("Hospital staff") {
-                        NavigationLink("Hospital workspace") { StaffHospitalListView(account: account) }
-                    }
-                } else if account.role == .staff {
-                    Section { Text("Staff access requires a verified email and a hospital assignment.").font(.subheadline) }
-                }
-                if account.role == .patient {
-                    Section { NavigationLink("Account & data controls") { AccountDataControlsView() } }
-                }
-                Section {
-                    Button("Sign out", role: .destructive) { model.signOut() }
-                        .disabled(sessionModel.isActive)
-                    if sessionModel.isActive { Text("Finish your active walk before signing out.").font(.caption) }
-                }
+                signedInSections(account)
             } else {
-                Section("Account") {
-                    Text("Sign in to access hospital queue updates.")
-                    Button { showingSignIn = true } label: {
-                        HStack {
-                            Text("Sign in or create account").fontWeight(.semibold)
-                            Spacer()
-                            Image(systemName: "arrow.right")
-                        }.padding(.vertical, 8)
-                    }.tint(CardioSafeTheme.accent(for: scheme))
-                        .disabled(!model.isConfigured)
-                    if !model.isConfigured {
-                        Text("Account services aren’t connected on this installation yet.").font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-            }
-            Section {
-                NavigationLink { AppSettingsView() } label: {
-                    Label("Settings", systemImage: "gearshape")
-                }
+                guestSections
             }
             if let message = model.message { Section { Text(message).font(.subheadline) } }
             if let error = model.errorMessage { Section { Text(error).foregroundStyle(.red) } }
         }
         .scrollContentBackground(.hidden)
         .background(CardioSafeTheme.background(for: scheme))
-        .tint(CardioSafeTheme.accent(for: scheme))
+        .tint(accent)
         .disabled(model.isBusy)
         .overlay { if model.isBusy { ProgressView().padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12)) } }
-        .overlay(alignment: .top) {
-            if let notice = model.notice {
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: notice.isError ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
-                        .foregroundStyle(notice.isError ? CardioSafeTheme.alert : CardioSafeTheme.teal)
-                    Text(notice.text).font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, alignment: .leading)
-                    Button { model.dismissNotice() } label: {
-                        Image(systemName: "xmark").font(.caption.bold()).frame(width: 44, height: 44)
-                    }.accessibilityLabel("Dismiss notification")
-                }
-                .padding(16)
-                .background(CardioSafeTheme.surface(for: scheme), in: RoundedRectangle(cornerRadius: 18))
-                .overlay { RoundedRectangle(cornerRadius: 18).stroke(CardioSafeTheme.teal.opacity(0.18), lineWidth: 1) }
-                .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
-                .padding(.horizontal, 16).padding(.top, 8)
-                .accessibilityElement(children: .contain)
-            }
-        }
+        .overlay(alignment: .top) { noticeBanner }
         .onChange(of: model.notice?.id) { _, _ in
             if let notice = model.notice { UIAccessibility.post(notification: .announcement, argument: notice.text) }
         }
@@ -127,7 +38,237 @@ struct AccountView: View {
             do { try await Task.sleep(for: .seconds(8)) } catch { return }
             model.dismissNotice()
         }
+        .onAppear { loadProfileSummary() }
+        .onChange(of: model.account) { _, _ in loadProfileSummary() }
+        .onReceive(NotificationCenter.default.publisher(for: .accountDataRestored)) { _ in loadProfileSummary() }
         .sheet(isPresented: $showingSignIn) { AccountSignInView(model: model) }
+    }
+
+    // MARK: Header
+
+    private var headerSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 16) {
+                if let account = model.account {
+                    HStack(spacing: 16) {
+                        Text(initials(for: account))
+                            .font(.title2.bold()).foregroundStyle(.white)
+                            .frame(width: avatarSize, height: avatarSize)
+                            .background(CardioSafeTheme.teal, in: Circle())
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(displayName.isEmpty ? account.email : displayName)
+                                .font(.title3.weight(.bold)).lineLimit(2)
+                            if !displayName.isEmpty {
+                                Text(account.email).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    HStack(spacing: 8) {
+                        badge(account.role == .staff ? "Hospital staff" : "Patient",
+                              symbol: account.role == .staff ? "building.2" : "person.fill", tint: accent)
+                        badge(account.isEmailVerified ? "Email verified" : "Email not verified",
+                              symbol: account.isEmailVerified ? "checkmark.seal.fill" : "exclamationmark.triangle.fill",
+                              tint: account.isEmailVerified ? .green : .orange)
+                    }
+                    if account.role == .patient {
+                        Divider()
+                        Label(emergencyContactName.isEmpty
+                              ? "No emergency contact added"
+                              : "Emergency contact: \(emergencyContactName)",
+                              systemImage: emergencyContactName.isEmpty ? "person.crop.circle.badge.questionmark" : "phone.circle.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(emergencyContactName.isEmpty ? Color.secondary : CardioSafeTheme.text(for: scheme))
+                    }
+                } else {
+                    HStack(spacing: 16) {
+                        Image(systemName: "person.crop.circle.fill")
+                            .font(.system(size: 44)).foregroundStyle(CardioSafeTheme.teal)
+                            .frame(width: avatarSize, height: avatarSize)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("You’re using CardioSafe as a guest").font(.title3.weight(.bold))
+                            Text("Sign in to sync your records and see hospital queues.")
+                                .font(.subheadline).foregroundStyle(.secondary)
+                        }
+                    }
+                    Button { showingSignIn = true } label: {
+                        HStack {
+                            Text("Sign in or create account").fontWeight(.semibold)
+                            Spacer()
+                            Image(systemName: "arrow.right")
+                        }
+                        .padding(.horizontal, 16).frame(minHeight: 50)
+                        .foregroundStyle(.white)
+                        .background(CardioSafeTheme.teal.opacity(model.isConfigured ? 1 : 0.45),
+                                    in: RoundedRectangle(cornerRadius: 14))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!model.isConfigured)
+                    if !model.isConfigured {
+                        Text("Account services aren’t connected on this installation yet.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(18).frame(maxWidth: .infinity, alignment: .leading)
+            .background(surface, in: RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Color.primary.opacity(0.05)))
+        }
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+    }
+
+    // MARK: Signed in
+
+    @ViewBuilder
+    private func signedInSections(_ account: AppAccount) -> some View {
+        Section("Your information") {
+            NavigationLink { PatientProfileView(accountID: account.id).id(account.id) } label: {
+                rowLabel("My details", subtitle: "Personal details and emergency contact",
+                         symbol: "person.text.rectangle", tint: .blue)
+            }
+            if account.role == .patient {
+                NavigationLink { AccountSyncView() } label: {
+                    rowLabel("Account sync", subtitle: "Backup status and conflicts",
+                             symbol: "icloud", tint: .cyan)
+                }
+            }
+        }
+
+        Section("Preferences") {
+            NavigationLink { AppSettingsView() } label: {
+                rowLabel("Settings", subtitle: "Appearance, app lock, permissions",
+                         symbol: "gearshape", tint: .gray)
+            }
+            NavigationLink { WalkingVoiceControlsView() } label: {
+                rowLabel("Voice & accessibility", subtitle: "Siri shortcuts, read aloud, VoiceOver",
+                         symbol: "speaker.wave.2", tint: .purple)
+            }
+        }
+
+        Section("Account") {
+            DisclosureGroup {
+                LabeledContent("Email", value: account.email)
+                LabeledContent("Role", value: account.role == .staff ? "Hospital staff" : "Patient")
+                LabeledContent("Email verified", value: account.isEmailVerified ? "Yes" : "Not yet")
+                if !account.isEmailVerified {
+                    Button { Task { await model.sendVerification() } } label: {
+                        Label(model.isBusy ? "Sending…" : "Send verification email", systemImage: "envelope.badge")
+                    }
+                }
+                Button("Refresh account") { Task { await model.restore() } }
+            } label: {
+                rowLabel("Account & verification", subtitle: account.email,
+                         symbol: "checkmark.shield", tint: .green)
+            }
+            if account.role == .patient {
+                NavigationLink { AccountDataControlsView() } label: {
+                    rowLabel("Account & data controls", subtitle: "Remove PDFs or delete your account",
+                             symbol: "lock.shield", tint: .orange)
+                }
+            }
+        }
+
+        if account.canManageQueues {
+            Section("Hospital staff") {
+                NavigationLink { StaffHospitalListView(account: account) } label: {
+                    rowLabel("Hospital workspace", subtitle: "SOS requests and department queues",
+                             symbol: "building.2", tint: CardioSafeTheme.teal)
+                }
+            }
+        } else if account.role == .staff {
+            Section {
+                Text("Staff access requires a verified email and a hospital assignment.").font(.subheadline)
+            }
+        }
+
+        Section {
+            Button("Sign out", role: .destructive) { model.signOut() }
+                .disabled(sessionModel.isActive)
+        } footer: {
+            if sessionModel.isActive { Text("Finish your active walk before signing out.") }
+        }
+    }
+
+    // MARK: Guest
+
+    @ViewBuilder
+    private var guestSections: some View {
+        Section("Preferences") {
+            NavigationLink { AppSettingsView() } label: {
+                rowLabel("Settings", subtitle: "Appearance, app lock, permissions",
+                         symbol: "gearshape", tint: .gray)
+            }
+            NavigationLink { WalkingVoiceControlsView() } label: {
+                rowLabel("Voice & accessibility", subtitle: "Siri shortcuts, read aloud, VoiceOver",
+                         symbol: "speaker.wave.2", tint: .purple)
+            }
+        }
+    }
+
+    // MARK: Notice banner
+
+    @ViewBuilder private var noticeBanner: some View {
+        if let notice = model.notice {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: notice.isError ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                    .foregroundStyle(notice.isError ? CardioSafeTheme.alert : CardioSafeTheme.teal)
+                Text(notice.text).font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, alignment: .leading)
+                Button { model.dismissNotice() } label: {
+                    Image(systemName: "xmark").font(.caption.bold()).frame(width: 44, height: 44)
+                }.accessibilityLabel("Dismiss notification")
+            }
+            .padding(16)
+            .background(surface, in: RoundedRectangle(cornerRadius: 18))
+            .overlay { RoundedRectangle(cornerRadius: 18).stroke(CardioSafeTheme.teal.opacity(0.18), lineWidth: 1) }
+            .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
+            .padding(.horizontal, 16).padding(.top, 8)
+            .accessibilityElement(children: .contain)
+        }
+    }
+
+    // MARK: Helpers
+
+    private func rowLabel(_ title: String, subtitle: String? = nil, symbol: String, tint: Color) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: symbol)
+                .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                .frame(width: 32, height: 32)
+                .background(tint, in: RoundedRectangle(cornerRadius: 8))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                if let subtitle {
+                    Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func badge(_ text: String, symbol: String, tint: Color) -> some View {
+        Label(text, systemImage: symbol)
+            .font(.caption.weight(.semibold)).foregroundStyle(tint)
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .background(tint.opacity(0.12), in: Capsule())
+    }
+
+    private func initials(for account: AppAccount) -> String {
+        let source = displayName.isEmpty ? account.email : displayName
+        let words = source.split(whereSeparator: { $0 == " " || $0 == "." || $0 == "@" || $0 == "_" || $0 == "-" })
+        let letters = words.prefix(2).compactMap { $0.first.map { String($0).uppercased() } }
+        return letters.isEmpty ? "?" : letters.joined()
+    }
+
+    private func loadProfileSummary() {
+        guard let account = model.account, account.role == .patient else {
+            displayName = ""; emergencyContactName = ""; return
+        }
+        let profile = try? LocalPatientProfileStore().load(accountID: account.id)
+        displayName = profile?.fullName ?? ""
+        emergencyContactName = profile?.emergencyContactName ?? ""
     }
 }
 
