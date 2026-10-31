@@ -136,7 +136,7 @@ struct EmergencyContactView: View {
         } header: {
             Text("Ambulance request (demo)")
         } footer: {
-            Text("Sends a simulated request to a demo hospital. No real ambulance is sent. In a real emergency, call 1990.")
+            Text("Sends a request to a demo hospital. No real ambulance is sent. In a real emergency, call 1990.")
         }
     }
 

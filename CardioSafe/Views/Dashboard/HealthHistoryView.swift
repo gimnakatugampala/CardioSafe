@@ -108,7 +108,7 @@ struct HealthHistoryView: View {
 
                 if !model.days.isEmpty { dailyBreakdown }
 
-                Text("Apple Health on this device · Missing readings are shown as unavailable, not zero. Heart rate is the average of available samples, not a resting-heart-rate measurement or continuous monitoring. Simulator test samples are included if present.")
+                Text("Apple Health on this device · Missing readings are shown as unavailable, not zero. Heart rate is the average of available samples, not a resting-heart-rate measurement or continuous monitoring.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             .padding(20).frame(maxWidth: 700).frame(maxWidth: .infinity)

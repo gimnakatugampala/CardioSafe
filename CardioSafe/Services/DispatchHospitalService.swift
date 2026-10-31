@@ -35,7 +35,7 @@ final class DispatchHospitalService: DispatchHospitalSelecting {
         let source: String
         #if targetEnvironment(simulator)
         origin = CLLocationCoordinate2D(latitude: 6.9271, longitude: 79.8612)
-        source = "Sample Colombo location · Simulator"
+        source = "Colombo location"
         #else
         location.start()
         let deadline = ContinuousClock.now.advanced(by: .seconds(12))

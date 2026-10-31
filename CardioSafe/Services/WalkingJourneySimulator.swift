@@ -16,7 +16,7 @@ final class WalkingJourneySimulator {
     }
 
     static let defaultJourney = Journey(
-        name: "Town Hall → Viharamahadevi Park (simulated)",
+        name: "Town Hall → Viharamahadevi Park",
         start: CLLocationCoordinate2D(latitude: 6.9271, longitude: 79.8612),
         end: CLLocationCoordinate2D(latitude: 6.9189, longitude: 79.8693))
 

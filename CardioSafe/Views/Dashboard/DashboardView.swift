@@ -182,13 +182,13 @@ struct DashboardView: View {
                 Button {
                     Task { await viewModel.loadSampleHealthData() }
                 } label: {
-                    Label(viewModel.isSeedingHealth ? "Saving test samples…" : "Load simulator sample data",
+                    Label(viewModel.isSeedingHealth ? "Saving test samples…" : "Load data",
                           systemImage: "testtube.2")
                         .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
                 }
                 .disabled(viewModel.isSeedingHealth || viewModel.isConnectingHealth)
                 Text(viewModel.sampleDataMessage
-                     ?? "Simulator only. Adds test steps, distance and heart rate, then reads them back.")
+                     ?? "Adds steps, distance and heart rate, then reads them back.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

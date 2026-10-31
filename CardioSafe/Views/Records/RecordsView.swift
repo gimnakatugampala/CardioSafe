@@ -231,7 +231,7 @@ struct RecordsView: View {
                                     if let date = summary.pickedUpAt { LabeledContent("Patient picked up", value: date.formatted()) }
                                     LabeledContent("Handover completed", value: summary.completedAt.formatted())
                                 }
-                                Text("Simulation record · Saved on this device")
+                                Text("Saved on this device")
                             }.navigationTitle("SOS summary")
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {

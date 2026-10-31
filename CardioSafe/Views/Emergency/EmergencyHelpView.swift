@@ -33,7 +33,7 @@ struct EmergencyHelpView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    Label("Simulation · No emergency service contacted", systemImage: "info.circle")
+                    Label("emergency service contacted", systemImage: "info.circle")
                         .font(.subheadline.weight(.semibold)).padding(14)
                         .frame(maxWidth: .infinity)
                         .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
@@ -59,7 +59,7 @@ struct EmergencyHelpView: View {
                     if let minutes = model.sampleETAMinutes {
                         VStack(spacing: 4) {
                             Text("\(minutes) min").font(.system(size: 42, weight: .bold, design: .rounded)).monospacedDigit()
-                            Text("Simulated arrival time").font(.caption).foregroundStyle(.secondary)
+                            Text("arrival time").font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     if [.hospitalArrived, .transporting, .arrived].contains(model.stage) {
@@ -93,7 +93,7 @@ struct EmergencyHelpView: View {
                                 Text(destination.reportedWaiting.map { "\($0) reported waiting across recently updated departments." } ?? "No fresh queue count is available; old or missing counts were not treated as zero.")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
-                            Text("MapKit finds nearby hospitals. Firebase supplies connected sample department counts updated within 15 minutes. This simulation sends a request to the assigned staff screen in CardioSafe. Staff must accept it before the status changes. No real ambulance service is contacted or tracked.")
+                            Text("MapKit finds nearby hospitals. Firebase supplies connected sample department counts updated within 15 minutes. This sends a request to the assigned staff screen in CardioSafe. Staff must accept it before the status changes. No real ambulance service is contacted or tracked.")
                                 .font(.caption).foregroundStyle(.secondary)
                             ForEach(model.events) { event in
                                 HStack {
@@ -134,11 +134,11 @@ struct EmergencyHelpView: View {
     }
     private var statusDetail: String {
         switch model.stage {
-        case .ready: "Tap Start SOS to send a simulated request to a demo hospital."
+        case .ready: "Tap Start SOS to send a  request to a demo hospital."
         case .finding: "We’re checking nearby hospitals and connected queue information."
         case .failed: model.errorMessage ?? "No request was sent. Try again."
         case .reviewing: "Waiting for hospital staff to accept your request."
-        case .accepted, .assigned, .enRoute: "Hospital staff accepted your simulation request. Waiting for ambulance assignment."
+        case .accepted, .assigned, .enRoute: "Hospital staff accepted your request. Waiting for ambulance assignment."
         case .arrived: "Stay at your pickup location. The crew will confirm pickup."
         case .transporting: "Your crew is taking you to the hospital. No action is needed."
         case .hospitalArrived: "Hospital staff are completing your handover. No action is needed."

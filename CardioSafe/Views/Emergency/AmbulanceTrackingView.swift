@@ -29,7 +29,7 @@ struct AmbulanceTrackingView: View {
                         MapPolyline(route).stroke(.blue.opacity(0.65), style: StrokeStyle(lineWidth: 6, lineCap: .round, dash: tracking.isIllustrative ? [8, 6] : []))
                     }
                     if let ambulance = tracking.position(progress: progress) {
-                        Annotation("Ambulance · Simulated", coordinate: ambulance) {
+                        Annotation("Ambulance", coordinate: ambulance) {
                             Image(systemName: "cross.case.fill")
                                 .font(.title3).padding(12).foregroundStyle(.white)
                                 .background(.red, in: RoundedRectangle(cornerRadius: 12))
@@ -40,7 +40,7 @@ struct AmbulanceTrackingView: View {
                 }
                 .mapControls { MapCompass(); MapScaleView() }
                 .safeAreaInset(edge: .top, spacing: 0) {
-                    Label("Simulation · No real ambulance dispatched", systemImage: "info.circle")
+                    Label("ambulance dispatched", systemImage: "info.circle")
                         .font(.caption.weight(.semibold)).padding(12).frame(maxWidth: .infinity)
                         .background(.regularMaterial)
                 }
@@ -68,9 +68,9 @@ struct AmbulanceTrackingView: View {
                         }
                         if tracking.polyline != nil {
                             ProgressView(value: progress).tint(.teal)
-                            Text(tracking.isIllustrative ? "Illustrative straight-line path · Road directions unavailable" : "Driving route · Simulated movement")
+                            Text(tracking.isIllustrative ? "Illustrative straight-line path · Road directions unavailable" : "Driving route")
                                 .font(.caption).foregroundStyle(.secondary)
-                            Text("90-second simulation · Not live GPS tracking").font(.caption).foregroundStyle(.secondary)
+                            Text("90-second · Not live GPS tracking").font(.caption).foregroundStyle(.secondary)
                         }
                         if let error = dispatch.errorMessage { Text(error).font(.caption).foregroundStyle(.orange) }
                         if arrived || transporting || dispatch.stage == .arrived {

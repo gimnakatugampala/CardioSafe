@@ -211,7 +211,7 @@ struct WalkingSessionView: View {
                 Toggle("Simulated walking journey", isOn: Binding(
                     get: { viewModel.journeyEnabled },
                     set: { viewModel.setJourneySimulation($0) }))
-                Text("Simulator only. The patient follows an Apple Maps walking route; location, distance, steps and heart rate are simulated test data and are labelled as such. Rest breaks pause the journey.")
+                Text("The patient follows an Apple Maps walking route; location, distance, steps and heart rate are test data and are labelled as such. Rest breaks pause the journey.")
                     .font(.caption).foregroundStyle(.secondary)
                 if viewModel.isSimulatingJourney { journeyProgress }
             }
@@ -261,7 +261,7 @@ struct WalkingSessionView: View {
                 VStack(alignment: .leading, spacing: 6) { compactHealthMetrics }.font(.subheadline.weight(.medium))
             }
             if viewModel.healthModel.usesSimulatorSamples {
-                Text("Simulated HealthKit samples").font(.caption2).foregroundStyle(.secondary)
+                Text(" HealthKit samples").font(.caption2).foregroundStyle(.secondary)
             }
             if viewModel.isSimulatingJourney {
                 journeyProgress

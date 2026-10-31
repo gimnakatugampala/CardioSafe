@@ -5,7 +5,7 @@ struct AutomaticSOSBanner: View {
     var body: some View {
         if model.state == .countdown {
             VStack(alignment: .leading, spacing: 8) {
-                Label("Simulation SOS in \(model.secondsRemaining)s", systemImage: "exclamationmark.triangle.fill")
+                Label(" SOS in \(model.secondsRemaining)s", systemImage: "exclamationmark.triangle.fill")
                     .font(.headline).accessibilityAddTraits(.updatesFrequently)
                 Text("Repeated readings crossed the test threshold. No real emergency service will be contacted.")
                     .font(.caption)

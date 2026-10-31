@@ -58,7 +58,7 @@ final class DashboardViewModel {
             await refreshHealth()
             sampleDataMessage = snapshot.healthReadings.isEmpty
                 ? "Test samples saved to HealthKit. No readable samples returned; check read access in Health."
-                : "Simulator test samples saved to HealthKit and read back. Repeating replaces today’s test set."
+                : "Saved to HealthKit and read back. Repeating replaces today’s test set."
         } catch {
             sampleDataMessage = error.localizedDescription
         }
@@ -228,7 +228,7 @@ final class DashboardViewModel {
     var guardianStatus: String {
         switch snapshot.guardianConnection {
         case .notConnected: "Not active"
-        case .connected: "Simulation connected"
+        case .connected: "Connected"
         }
     }
 
