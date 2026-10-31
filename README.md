@@ -111,7 +111,7 @@ Markers normally reach the backend through the running application. No service-a
 | Hospital | Sign in as `enwarelabs@gmail.com` using the password supplied privately | Staff operations for Asiri Central only |
 | Firebase Console | Optional access must be granted separately to the marker's own Google account | Only the permissions explicitly granted; console access is not publicly available |
 
-**Obtain the hospital test password through the private LMS assessment channel. No password is included in this README.** If the password is missing from the private submission, contact the student before evaluating hospital access.
+**Obtain the hospital test password through the private LMS assessment channel.
 
 The hospital test account has a verified email and trusted staff claims assigning it to `demo-asiri-central`. Successful sign-in opens the hospital workspace automatically. Ordinary patient registration does not grant staff access.
 
