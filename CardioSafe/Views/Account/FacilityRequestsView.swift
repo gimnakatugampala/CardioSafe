@@ -3,7 +3,50 @@ import SwiftUI
 struct FacilityRequestsView: View {
     let hospitalID: String
     @State private var model = FacilityRequestsViewModel()
+    @State private var selectedRequestID: String?
+    @Environment(\.dynamicTypeSize) private var typeSize
     var body: some View {
+        GeometryReader { geometry in
+            if geometry.size.width >= 760 && !typeSize.isAccessibilitySize {
+                HStack(spacing: 0) {
+                    List {
+                        Section("SOS inbox") {
+                            if model.isLoading { ProgressView("Loading requests…") }
+                            if let error = model.errorMessage {
+                                Text(error).foregroundStyle(.orange)
+                                Button("Reconnect") { model.listen(hospitalID: hospitalID) }
+                            }
+                            if model.requests.isEmpty && !model.isLoading {
+                                ContentUnavailableView("No active requests", systemImage: "checkmark.circle")
+                            }
+                            ForEach(model.requests) { request in
+                                Button { selectedRequestID = request.id } label: {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text("Request \(request.id.prefix(8))").font(.headline)
+                                        Text(SOSJourneyStatus(rawValue: request.status)?.title ?? "Request").font(.subheadline)
+                                    }.padding(.vertical, 6)
+                                }.listRowBackground(selectedRequestID == request.id ? Color.accentColor.opacity(0.12) : Color.clear)
+                            }
+                        }
+                    }.frame(width: 320)
+                    Divider()
+                    ScrollView {
+                        if let request = model.requests.first(where: { $0.id == selectedRequestID }) ?? model.requests.first {
+                            requestCard(request).padding(24)
+                        } else {
+                            ContentUnavailableView("Select an SOS request", systemImage: "sos.circle",
+                                                   description: Text("Request details and journey actions appear here."))
+                        }
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            } else { requestList }
+        }
+        .navigationTitle("SOS requests").navigationBarTitleDisplayMode(.inline)
+        .task(id: hospitalID) { selectedRequestID = nil; model.listen(hospitalID: hospitalID) }
+        .onDisappear { model.stop() }
+    }
+
+    private var requestList: some View {
         List {
             if let completed = model.completedRequestID {
                 Section {
@@ -32,9 +75,6 @@ struct FacilityRequestsView: View {
                 }
             }
         }
-        .navigationTitle("SOS requests").navigationBarTitleDisplayMode(.inline)
-        .task { model.listen(hospitalID: hospitalID) }
-        .onDisappear { model.stop() }
     }
 
     private func requestCard(_ request: SOSRequest) -> some View {

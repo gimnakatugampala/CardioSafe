@@ -7,6 +7,7 @@ struct WalkingSessionView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @ScaledMetric(relativeTo: .largeTitle) private var timerSize = 56
     @State private var showingFinishConfirmation = false
     @State private var showingEmergency = false
@@ -129,9 +130,26 @@ struct WalkingSessionView: View {
 
     private var activeMapScreen: some View {
         GeometryReader { geometry in
+            let wide = horizontalSizeClass == .regular && geometry.size.width >= 900 && !typeSize.isAccessibilitySize
+            if wide {
+                activeMapBase.safeAreaInset(edge: .trailing, spacing: 0) {
+                    activeMapDock(height: geometry.size.height, wide: true)
+                }
+            } else {
+                activeMapBase.safeAreaInset(edge: .bottom, spacing: 0) {
+                    activeMapDock(height: geometry.size.height, wide: false)
+                }
+            }
+        }
+    }
+
+    private var activeMapBase: some View {
         WalkingLiveMapView(sessionViewModel: viewModel)
             .ignoresSafeArea()
-            .safeAreaInset(edge: .top, spacing: 0) {
+            .safeAreaInset(edge: .top, spacing: 0) { activeMapHeader }
+    }
+
+    private var activeMapHeader: some View {
                 HStack {
                     Button { dismiss() } label: {
                         Image(systemName: "chevron.down").frame(width: 44, height: 44)
@@ -152,11 +170,23 @@ struct WalkingSessionView: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 20).padding(.top, 8)
+    }
+
+    private func activeMapDock(height: CGFloat, wide: Bool) -> some View {
+        TimelineView(.periodic(from: .now, by: 1)) { _ in
+            VStack(spacing: 8) {
+                AutomaticSOSBanner(model: viewModel.automaticSOS)
+                activeRestStop
+                if typeSize.isAccessibilitySize {
+                    ScrollView { activeControls(viewModel.timing()) }.frame(height: height * 0.55)
+                } else { activeControls(viewModel.timing()) }
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                TimelineView(.periodic(from: .now, by: 1)) { _ in
-                    VStack(spacing: 8) {
-                        AutomaticSOSBanner(model: viewModel.automaticSOS)
+            .frame(width: wide ? 360 : nil)
+            .padding(.trailing, wide ? 16 : 0)
+        }
+    }
+
+    @ViewBuilder private var activeRestStop: some View {
                         if let stop = viewModel.restStop.reminder {
                             VStack(alignment: .leading, spacing: 6) {
                                 HStack {
@@ -173,16 +203,6 @@ struct WalkingSessionView: View {
                                 }
                             }.padding(12).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16)).padding(.horizontal, 12)
                         }
-                        if typeSize.isAccessibilitySize {
-                            ScrollView { activeControls(viewModel.timing()) }
-                                .frame(height: geometry.size.height * 0.55)
-                        } else {
-                            activeControls(viewModel.timing())
-                        }
-                    }
-                }
-            }
-        }
     }
 
     @ViewBuilder private var journeySettings: some View {

@@ -24,6 +24,7 @@ struct AccountView: View {
             if let message = model.message { Section { Text(message).font(.subheadline) } }
             if let error = model.errorMessage { Section { Text(error).foregroundStyle(.red) } }
         }
+        .frame(maxWidth: 900).frame(maxWidth: .infinity)
         .scrollContentBackground(.hidden)
         .background(CardioSafeTheme.background(for: scheme))
         .tint(accent)

@@ -10,6 +10,8 @@ struct HospitalOverviewView: View {
     @State private var queues = HospitalQueueViewModel()
     @Environment(FacilitySOSAlerts.self) private var alerts
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var typeSize
     private var pending: Int { requests.requests.filter { $0.status == "pending" }.count }
     private var assigned: Int { requests.requests.filter { ["assigned", "patient_arrived", "transporting", "hospital_arrived"].contains($0.status) }.count }
     private var name: String { hospitalID == "demo-asiri-central" ? "Asiri Central Hospital" : hospitalID }
@@ -44,6 +46,31 @@ struct HospitalOverviewView: View {
                     metric("Ambulances assigned", value: requests.isLoading || requests.errorMessage != nil ? "—" : "\(assigned)", symbol: "cross.case", color: CardioSafeTheme.accent(for: scheme))
                 }
 
+                ViewThatFits(in: .horizontal) {
+                    if horizontalSizeClass == .regular && !typeSize.isAccessibilitySize {
+                        HStack(alignment: .top, spacing: 24) {
+                            inboxCard.frame(minWidth: 300)
+                            queueCard.frame(minWidth: 300)
+                        }
+                    }
+                    VStack(spacing: 24) { inboxCard; queueCard }
+                }
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Stay ready for new requests", systemImage: "bell.badge").font(.headline)
+                    Text("Enable notifications to be alerted when a new SOS request reaches your hospital. Keep the app open to receive alerts.")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                    Button("Enable SOS alerts") { Task { await alerts.enable() } }.buttonStyle(.bordered)
+                    if let message = alerts.message { Text(message).font(.caption).foregroundStyle(.secondary) }
+                }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(CardioSafeTheme.surface(for: scheme), in: RoundedRectangle(cornerRadius: 22))
+            }.frame(maxWidth: 1200).padding(20).frame(maxWidth: .infinity)
+        }
+        .background(CardioSafeTheme.background(for: scheme))
+        .navigationTitle("Overview").navigationBarTitleDisplayMode(.inline)
+        .task(id: hospitalID) { requests.listen(hospitalID: hospitalID); queues.listen(hospitalID: hospitalID) }
+        .onDisappear { requests.stop(); queues.stop() }
+    }
+    private var inboxCard: some View {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
                         Text("SOS inbox").font(.title3.bold())
@@ -72,6 +99,8 @@ struct HospitalOverviewView: View {
                     }.buttonStyle(.plain)
                 }.padding(20).background(CardioSafeTheme.surface(for: scheme), in: RoundedRectangle(cornerRadius: 22))
 
+    }
+    private var queueCard: some View {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
                         Text("Department queues").font(.title3.bold())
@@ -97,20 +126,6 @@ struct HospitalOverviewView: View {
                     }
                 }.padding(20).background(CardioSafeTheme.surface(for: scheme), in: RoundedRectangle(cornerRadius: 22))
 
-                VStack(alignment: .leading, spacing: 10) {
-                    Label("Stay ready for new requests", systemImage: "bell.badge").font(.headline)
-                    Text("Enable notifications to be alerted when a new SOS request reaches your hospital. Keep the app open to receive alerts.")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                    Button("Enable SOS alerts") { Task { await alerts.enable() } }.buttonStyle(.bordered)
-                    if let message = alerts.message { Text(message).font(.caption).foregroundStyle(.secondary) }
-                }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(CardioSafeTheme.surface(for: scheme), in: RoundedRectangle(cornerRadius: 22))
-            }.padding(20)
-        }
-        .background(CardioSafeTheme.background(for: scheme))
-        .navigationTitle("Overview").navigationBarTitleDisplayMode(.inline)
-        .task(id: hospitalID) { requests.listen(hospitalID: hospitalID); queues.listen(hospitalID: hospitalID) }
-        .onDisappear { requests.stop(); queues.stop() }
     }
     private func metric(_ title: String, value: String, symbol: String, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 12) {

@@ -12,6 +12,7 @@ struct DashboardView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var showingWalkingMap = false
     @State private var showingSession = false
     @State private var history = HealthHistoryViewModel()
@@ -35,15 +36,18 @@ struct DashboardView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 hero
-                NavigationLink { HealthHistoryView() } label: {
-                    HealthHistoryPreviewCard(model: history)
+                ViewThatFits(in: .horizontal) {
+                    if horizontalSizeClass == .regular && !typeSize.isAccessibilitySize {
+                        HStack(alignment: .top, spacing: 24) {
+                            healthHistoryCard.frame(minWidth: 300)
+                            walkingCard.frame(minWidth: 320)
+                        }
+                    }
+                    VStack(spacing: 24) { healthHistoryCard; walkingCard }
                 }
-                .buttonStyle(.plain)
-                .padding(.top, 8)
-                walkingCard
                 careShortcuts
             }
-            .frame(maxWidth: 900, alignment: .leading)
+            .frame(maxWidth: horizontalSizeClass == .regular ? 1200 : 900, alignment: .leading)
             .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 24)
             .frame(maxWidth: .infinity)
         }
@@ -63,6 +67,11 @@ struct DashboardView: View {
         }
         .sheet(isPresented: $showingWalkingMap) { WalkingMapView() }
         .fullScreenCover(isPresented: $showingSession) { WalkingSessionView(viewModel: sessionViewModel) }
+    }
+
+    private var healthHistoryCard: some View {
+        NavigationLink { HealthHistoryView() } label: { HealthHistoryPreviewCard(model: history) }
+            .buttonStyle(.plain).padding(.top, 8)
     }
 
     // MARK: Hero

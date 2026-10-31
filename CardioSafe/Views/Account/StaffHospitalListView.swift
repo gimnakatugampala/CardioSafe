@@ -45,6 +45,7 @@ struct StaffDepartmentView: View {
                 Text("No departments are configured for this hospital.")
             }
         }
+        .frame(maxWidth: 900).frame(maxWidth: .infinity)
         .navigationTitle("Department queues").navigationBarTitleDisplayMode(.inline)
         .task { model.listen(hospitalID: hospitalID) }
         .onDisappear { model.stop() }

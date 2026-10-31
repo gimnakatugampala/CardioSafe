@@ -14,10 +14,64 @@ struct CareFinderView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var scheme
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+        GeometryReader { geometry in
+            if horizontalSizeClass == .regular && geometry.size.width >= 700 && !typeSize.isAccessibilitySize {
+                HStack(spacing: 0) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 18) {
+                            searchField
+                            searchControls
+                            hospitalResults
+                        }.padding(20)
+                    }.frame(width: min(380, geometry.size.width * 0.43))
+                    Divider()
+                    CareMapPanel(model: model, camera: $camera, onExpand: { showingFullScreenMap = true })
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        searchField
+                        CareMapPanel(model: model, camera: $camera, onExpand: { showingFullScreenMap = true })
+                            .frame(height: typeSize.isAccessibilitySize ? 360 : 290)
+                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                        searchControls
+                        hospitalResults
+                    }.padding(20).frame(maxWidth: 850).frame(maxWidth: .infinity)
+                }
+            }
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $selectedHospital, onDismiss: { model.selectedPlaceID = nil }) { hospital in
+            HospitalDetailView(hospital: hospital, distance: model.distanceText(to: hospital))
+        }
+        .fullScreenCover(isPresented: $showingFullScreenMap, onDismiss: { model.selectedPlaceID = nil }) {
+            CareFullScreenMapView(model: model, camera: $camera, locationModel: locationModel,
+                                  onSearch: search, onNearMe: findNearMe)
+        }
+        .task { if !model.hasSearched { await model.search() } }
+        .onChange(of: model.selectedPlaceID) { _, id in
+            // While the full-screen map is open it shows its own summary and detail sheet.
+            guard !showingFullScreenMap else { return }
+            if let id { selectedHospital = model.hospitals.first { $0.id == id } }
+        }
+        .onChange(of: locationModel.location) { _, location in
+            if wantsNearby, let location { locateAndSearch(location) }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { locationModel.stop(); model.clearLocation() }
+        }
+        .onDisappear {
+            guard !showingFullScreenMap else { return }
+            locationModel.stop(); model.cancelSearch()
+        }
+    }
+
+    private var searchField: some View {
                 HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
                     TextField("Search hospitals in this area", text: $model.query)
@@ -29,11 +83,9 @@ struct CareFinderView: View {
                 }
                 .padding(14).background(.background, in: RoundedRectangle(cornerRadius: 14))
 
-                // Map with expand (full screen) and + / − zoom buttons on its right edge.
-                CareMapPanel(model: model, camera: $camera, onExpand: { showingFullScreenMap = true })
-                    .frame(height: typeSize.isAccessibilitySize ? 360 : 290)
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-
+    }
+    private var searchControls: some View {
+        VStack(alignment: .leading, spacing: 14) {
                 (typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12)) : AnyLayout(HStackLayout())) {
                     Button { search() } label: { Label("Search this area", systemImage: "arrow.clockwise") }
                         .buttonStyle(.borderedProminent)
@@ -58,6 +110,10 @@ struct CareFinderView: View {
                     }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
                         .background(.background, in: RoundedRectangle(cornerRadius: 16))
                 }
+        }
+    }
+    private var hospitalResults: some View {
+        VStack(alignment: .leading, spacing: 18) {
                 HStack {
                     Text("Hospitals").font(.title3.bold())
                     Spacer()
@@ -91,33 +147,6 @@ struct CareFinderView: View {
                 }
                 Label("Open a hospital for available department updates. Ambulance availability is not connected.", systemImage: "info.circle")
                     .font(.caption).foregroundStyle(.secondary)
-            }
-            .padding(20).frame(maxWidth: 850).frame(maxWidth: .infinity)
-        }
-        .background(Color(.systemGroupedBackground))
-        .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $selectedHospital, onDismiss: { model.selectedPlaceID = nil }) { hospital in
-            HospitalDetailView(hospital: hospital, distance: model.distanceText(to: hospital))
-        }
-        .fullScreenCover(isPresented: $showingFullScreenMap, onDismiss: { model.selectedPlaceID = nil }) {
-            CareFullScreenMapView(model: model, camera: $camera, locationModel: locationModel,
-                                  onSearch: search, onNearMe: findNearMe)
-        }
-        .task { if !model.hasSearched { await model.search() } }
-        .onChange(of: model.selectedPlaceID) { _, id in
-            // While the full-screen map is open it shows its own summary and detail sheet.
-            guard !showingFullScreenMap else { return }
-            if let id { selectedHospital = model.hospitals.first { $0.id == id } }
-        }
-        .onChange(of: locationModel.location) { _, location in
-            if wantsNearby, let location { locateAndSearch(location) }
-        }
-        .onChange(of: scenePhase) { _, phase in
-            if phase != .active { locationModel.stop(); model.clearLocation() }
-        }
-        .onDisappear {
-            guard !showingFullScreenMap else { return }
-            locationModel.stop(); model.cancelSearch()
         }
     }
 

@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var shouldShowRestoredSOS = false
     @Environment(\.colorScheme) private var scheme
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.scenePhase) private var scenePhase
     @State private var facilityAlerts = FacilitySOSAlerts()
     @State private var notificationRouter = SOSNotificationRouter.shared
@@ -236,7 +237,59 @@ struct ContentView: View {
             .background(CardioSafeTheme.surface(for: scheme))
     }
 
-    private var patientTabs: some View {
+    @ViewBuilder private var patientTabs: some View {
+        if horizontalSizeClass == .regular {
+            NavigationSplitView {
+                List {
+                    Section("CardioSafe") {
+                        ForEach(AppTab.allCases) { tab in
+                            Button { selection = tab } label: {
+                                Label(tab.rawValue, systemImage: tab.symbol)
+                                    .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                            }
+                            .listRowBackground(selection == tab ? CardioSafeTheme.accent(for: scheme).opacity(0.14) : Color.clear)
+                            .accessibilityAddTraits(selection == tab ? .isSelected : [])
+                        }
+                    }
+                    Section {
+                        Button {
+                            selection = .walk
+                            if sessionViewModel.isActive || sessionViewModel.start(plan: dashboardViewModel.snapshot.walkingPlan) {
+                                showingWalkingSession = true
+                            }
+                        } label: {
+                            Label(sessionViewModel.isActive ? "Return to walk" : "Start walking", systemImage: "figure.walk.circle.fill")
+                                .font(.headline).padding(.vertical, 6)
+                        }
+                        Button { showingEmergencyContacts = true } label: {
+                            Label("Emergency Help", systemImage: "sos.circle").foregroundStyle(.red)
+                        }
+                    }
+                }
+                .listStyle(.sidebar)
+                .navigationTitle("CardioSafe")
+                .navigationSplitViewColumnWidth(min: 220, ideal: 245, max: 290)
+            } detail: {
+                NavigationStack {
+                    destination(for: selection)
+                        .navigationTitle(selection == .home ? "" : selection.rawValue)
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .primaryAction) {
+                                Button { showingEmergencyContacts = true } label: {
+                                    Label("Emergency Help", systemImage: "sos.circle")
+                                }.tint(.red)
+                            }
+                        }
+                }.id(selection)
+            }
+            .navigationSplitViewStyle(.balanced)
+        } else {
+            compactPatientTabs
+        }
+    }
+
+    private var compactPatientTabs: some View {
         TabView(selection: $selection) {
             ForEach(AppTab.allCases) { tab in
                 Tab(tab.rawValue, systemImage: tab.symbol, value: tab) {
