@@ -8,6 +8,7 @@ struct WalkingVoiceControlsView: View {
     @State private var testMessage: String?
     @State private var speaker = AVSpeechSynthesizer()
     @State private var voiceOverEnabled = UIAccessibility.isVoiceOverRunning
+    @AppStorage("walkingSpokenAnnouncementsEnabled") private var spokenAnnouncements = true
     var body: some View {
         List {
             Section("Siri walking shortcuts") {
@@ -43,6 +44,9 @@ struct WalkingVoiceControlsView: View {
                 }
             }
             Section("Read aloud") {
+                Toggle("Announce walk start and finish", isOn: $spokenAnnouncements)
+                Text("When enabled, starting a walk speaks a confirmation. Finishing announces walking and resting time after you confirm Finish walk.")
+                    .font(.footnote).foregroundStyle(.secondary)
                 Button("Read my walking status aloud") {
                     let timing = session.timing()
                     let text = session.isActive

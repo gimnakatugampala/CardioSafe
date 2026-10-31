@@ -113,7 +113,7 @@ final class WalkingSessionViewModel {
             if session == nil { await loadHistory(); restoreUnfinishedWalk() }
             return
         }
-        if isActive { _ = finish() }
+        if isActive { _ = finish(announcing: false) }
         while isSaving || isLoadingHistory { await Task.yield() }
         await savePendingSessions()
         ownerID = newOwner
@@ -212,6 +212,7 @@ final class WalkingSessionViewModel {
         startJourneySimulation()
         checkpoint()
         beginCheckpoints()
+        if tracksSensors { WalkingAnnouncements.shared.started() }
         return true
     }
 
@@ -248,7 +249,7 @@ final class WalkingSessionViewModel {
     }
 
     @discardableResult
-    func finish() -> Bool {
+    func finish(announcing: Bool = true) -> Bool {
         guard isActive else { return false }
         let now = clock.read()
         checkpointTask?.cancel(); checkpointTask = nil
@@ -269,6 +270,9 @@ final class WalkingSessionViewModel {
         #endif
         persistFinishedRecovery(at: now.date)
         if let session { completedSessions.insert(session, at: 0) }
+        if announcing, tracksSensors, let session {
+            WalkingAnnouncements.shared.finished(walkingSeconds: session.walkingSeconds, restingSeconds: session.restingSeconds)
+        }
         Task { await savePendingSessions() }
         return true
     }
