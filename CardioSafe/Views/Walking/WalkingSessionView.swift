@@ -218,6 +218,19 @@ struct WalkingSessionView: View {
         }
     }
 
+    @ViewBuilder private var journeySettings: some View {
+        if viewModel.canSimulateJourney {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle("Simulated walking journey", isOn: Binding(
+                    get: { viewModel.journeyEnabled },
+                    set: { viewModel.setJourneySimulation($0) }))
+                Text("Simulator only. The patient follows an Apple Maps walking route; location, distance, steps and heart rate are simulated test data and are labelled as such. Rest breaks pause the journey.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if viewModel.isSimulatingJourney { journeyProgress }
+            }
+        }
+    }
+
     private var automaticSOSSettings: some View {
         VStack(alignment: .leading, spacing: 10) {
             Toggle("Automatic SOS simulation", isOn: Binding(
